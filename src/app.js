@@ -536,6 +536,17 @@ function renderRuleCard(match, compact = false) {
   `;
 }
 
+function renderLiveBadges(match) {
+  const rule = getScoringRule(match);
+  const flags = getTrumpFlags(match);
+  return `
+    <div class="live-badges">
+      <span>${rule.target}</span>
+      ${flags.map((flag) => `<span class="trump-mini">Trump: ${flag.team}</span>`).join("")}
+    </div>
+  `;
+}
+
 function filteredFixtures() {
   return state.fixtures.filter((match) => {
     const dateMatch = state.selectedDate === "all" || match.date === state.selectedDate;
@@ -716,8 +727,7 @@ function renderLive() {
             <b>${sideB}</b>
           </div>
           <div class="match-state">${active.stage} | ${active.status}</div>
-          ${renderTrumpBanner(active)}
-          ${renderRuleCard(active, true)}
+          ${renderLiveBadges(active)}
         </div>
         <div class="video-panel">
           ${
