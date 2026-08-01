@@ -1,5 +1,6 @@
 import { adminUsers } from "./config/admin-users.js";
 import { fixtures, rosters, tournamentMeta } from "./data/tournament-data.js";
+import { initFirebaseState, readSharedState, subscribeSharedState, writeSharedState } from "./services/firebase-state.js";
 
 const STORAGE_KEY = "npl-2026-state-v1";
 const ADMIN_SESSION_KEY = "npl-2026-admin-session";
@@ -13,6 +14,8 @@ const tabs = [
 ];
 
 const state = loadState();
+let isRemoteStateEnabled = false;
+let isApplyingRemoteState = false;
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -55,10 +58,45 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedState));
 }
 
+function getSharedState() {
+  return {
+    activeMatchId: state.activeMatchId,
+    youtubeUrl: state.youtubeUrl,
+    streamEnabled: state.streamEnabled,
+    fixtures: state.fixtures,
+    lastAdminUserId: getAdminSession()?.userId || "",
+  };
+}
+
+function applySharedState(sharedState) {
+  if (!sharedState) return;
+  const mergedFixtures = fixtures.map((match) => ({
+    ...match,
+    ...(sharedState.fixtures || []).find((item) => item.id === match.id),
+  }));
+  Object.assign(state, {
+    activeMatchId: sharedState.activeMatchId || state.activeMatchId,
+    youtubeUrl: sharedState.youtubeUrl ?? state.youtubeUrl,
+    streamEnabled: Boolean(sharedState.streamEnabled),
+    fixtures: mergedFixtures,
+  });
+  saveState();
+}
+
+async function syncSharedState() {
+  if (!isRemoteStateEnabled || !state.isAdminLoggedIn || isApplyingRemoteState) return;
+  try {
+    await writeSharedState(getSharedState());
+  } catch (error) {
+    console.warn("Could not sync NPL state to Firestore.", error);
+  }
+}
+
 function setState(patch, options = {}) {
   Object.assign(state, patch);
   if (options.persist !== false) saveState();
   render();
+  if (options.remote === true) syncSharedState();
 }
 
 function getAdminSession() {
@@ -605,6 +643,7 @@ function updateMatch(id, patch) {
   state.fixtures = state.fixtures.map((match) => (match.id === id ? { ...match, ...patch } : match));
   saveState();
   render();
+  syncSharedState();
 }
 
 function findAdminUser(userId) {
@@ -663,6 +702,7 @@ function resetDemoData() {
   localStorage.removeItem(STORAGE_KEY);
   Object.assign(state, loadState());
   render();
+  syncSharedState();
 }
 
 function appShell(content) {
@@ -1046,7 +1086,7 @@ function bindEvents() {
   });
 
   document.querySelector("[data-active-select]")?.addEventListener("change", (event) => {
-    setState({ activeMatchId: event.target.value });
+    setState({ activeMatchId: event.target.value }, { remote: state.isAdminLoggedIn });
   });
 
   document.querySelector("[data-admin-login]")?.addEventListener("click", () => {
@@ -1147,4 +1187,25 @@ function bindEvents() {
   document.querySelector("[data-reset]")?.addEventListener("click", resetDemoData);
 }
 
-render();
+async function startApp() {
+  render();
+  isRemoteStateEnabled = await initFirebaseState();
+  if (!isRemoteStateEnabled) return;
+
+  const sharedState = await readSharedState();
+  if (sharedState) {
+    isApplyingRemoteState = true;
+    applySharedState(sharedState);
+    isApplyingRemoteState = false;
+    render();
+  }
+
+  subscribeSharedState((nextSharedState) => {
+    isApplyingRemoteState = true;
+    applySharedState(nextSharedState);
+    isApplyingRemoteState = false;
+    render();
+  });
+}
+
+startApp();
