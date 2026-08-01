@@ -10,11 +10,11 @@ Responsive prototype for the in-house badminton tournament.
   choose actual players or pairs for each side.
 - Separate Dashboard page with all-category and category-filtered standings.
   Team Championship uses trump scoring; other categories use win-based points.
-- Public viewer mode is read-only; score and match updates require Scorer
-  Console login.
+- Public viewer mode is read-only; score and match updates require Admin
+  login.
 - Group-wise player and team roster pages.
 - Results page with completed match list and simple standings.
-- Mobile scorer/organiser console for score updates, match status, and rescheduling.
+- Mobile Admin console for score updates, match status, and rescheduling.
 - Cropped Nature Walk Premier League Badminton logo from the supplied photo,
   animated live score changes, and rule cards based on the attached rules and
   regulations document.
@@ -40,20 +40,19 @@ Firebase, Supabase, or a Node API with WebSockets.
 
 The logo asset is stored at `src/assets/npl-logo.jpeg`.
 
-## Scorer Access
+## Admin Access
 
-Public viewers do not need to login. Admin/scorer update controls are hidden
-unless the browser has an authenticated admin or scorer session. The frontend
-expects a backend endpoint at `/api/access-login` to validate credentials and
-return a server-issued session, for example:
+Public viewers do not need to login. Update controls are hidden unless the
+browser has an Admin session. Admins can update scores, mark winners, change
+line-ups, mark trump games, and reschedule matches.
 
-```json
-{ "role": "scorer", "token": "server-issued-token" }
+Allowed Admin user IDs are configured in:
+
+```text
+src/config/admin-users.js
 ```
 
-For production, use Supabase, Firebase, or a backend API so credentials and role
-checks stay server-side.
-
-When running locally on `localhost`, the login screen also shows a local-preview
-access button so the protected scoring controls can be tested before the backend
-login endpoint is connected.
+The current prototype checks that config in the browser and stores score/schedule
+edits in browser local storage. For live multi-device usage, move the same Admin
+allowlist and match-state updates to a backend such as Supabase, Firebase, or a
+Node API with WebSockets.
