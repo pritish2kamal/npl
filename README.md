@@ -34,9 +34,9 @@ http://localhost:5173
 
 ## Notes For Production
 
-This first version stores scoring and schedule edits in browser local storage.
-For live multi-device usage, connect the same UI to a real-time backend such as
-Firebase, Supabase, or a Node API with WebSockets.
+When deployed on Firebase Hosting, the portal syncs the shared live tournament
+state through Cloud Firestore. Local browser storage remains as a fallback for
+offline/local preview.
 
 The logo asset is stored at `src/assets/npl-logo.jpeg`.
 
@@ -52,7 +52,25 @@ Allowed Admin user IDs are configured in:
 src/config/admin-users.js
 ```
 
-The current prototype checks that config in the browser and stores score/schedule
-edits in browser local storage. For live multi-device usage, move the same Admin
-allowlist and match-state updates to a backend such as Supabase, Firebase, or a
-Node API with WebSockets.
+The current prototype checks Admin IDs in the browser and writes the Admin user
+ID with Firestore updates. For stronger production security, replace this with
+Firebase Authentication and Firestore rules based on authenticated Admin email
+addresses or custom claims.
+
+## Firebase Deploy
+
+The hosted app reads Firebase config from Firebase Hosting and writes shared
+state to `portalState/live` in Cloud Firestore.
+
+Deploy from the Firebase project folder:
+
+```powershell
+firebase deploy
+```
+
+If your Firebase project folder is one level above this app, set the hosting
+public directory to `npl` in `firebase.json`, then run:
+
+```powershell
+firebase deploy --only hosting,firestore
+```
