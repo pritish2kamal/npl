@@ -548,6 +548,29 @@ function formatDateLabel(date) {
   return date.replace("-26", " 2026");
 }
 
+function getYouTubeEmbedUrl(url) {
+  if (!url) return "";
+
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    if (parsed.hostname.includes("youtube.com") && parsed.pathname.startsWith("/embed/")) return parsed.href;
+
+    if (parsed.hostname.includes("youtube.com")) {
+      const videoId = parsed.searchParams.get("v") || parsed.pathname.split("/").filter(Boolean).pop();
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : parsed.href;
+    }
+
+    if (parsed.hostname.includes("youtu.be")) {
+      const videoId = parsed.pathname.split("/").filter(Boolean)[0];
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : parsed.href;
+    }
+
+    return parsed.href;
+  } catch {
+    return url;
+  }
+}
+
 function updateMatch(id, patch) {
   if (!state.isAdminLoggedIn) return;
   state.fixtures = state.fixtures.map((match) => (match.id === id ? { ...match, ...patch } : match));
@@ -674,7 +697,8 @@ function renderLive() {
   const active = getActiveMatch();
   const { sideA, sideB } = getDisplaySides(active);
   const upcoming = state.fixtures.filter((match) => match.status === "Scheduled").slice(0, 5);
-  const showStream = state.streamEnabled && state.youtubeUrl;
+  const embedUrl = getYouTubeEmbedUrl(state.youtubeUrl);
+  const showStream = state.streamEnabled && embedUrl;
 
   return `
     <section class="live-grid">
@@ -698,7 +722,7 @@ function renderLive() {
         <div class="video-panel">
           ${
             showStream
-              ? `<iframe src="${state.youtubeUrl}" title="NPL YouTube live feed" allowfullscreen></iframe>`
+              ? `<iframe src="${embedUrl}" title="NPL YouTube live feed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`
               : `<div class="stream-fallback">
                   <img src="./src/assets/npl-logo.jpeg" alt="Nature Walk Premier League Badminton logo" />
                   <span>Live stream offline</span>
@@ -1019,7 +1043,7 @@ function bindEvents() {
       patch[input.dataset.edit] = input.value;
     });
     const youtube = document.querySelector("[data-youtube]")?.value;
-    state.youtubeUrl = youtube || "";
+    state.youtubeUrl = getYouTubeEmbedUrl(youtube || "");
     state.streamEnabled = Boolean(document.querySelector("[data-stream-enabled]")?.checked);
     updateMatch(id, patch);
   });
