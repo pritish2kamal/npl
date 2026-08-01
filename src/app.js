@@ -2,14 +2,14 @@ import { fixtures, rosters, tournamentMeta } from "./data/tournament-data.js";
 
 const STORAGE_KEY = "npl-2026-state-v1";
 const SCORER_SESSION_KEY = "npl-2026-scorer-session";
-const SCORER_AUTH_ENDPOINT = "/api/scorer-login";
+const SCORER_AUTH_ENDPOINT = "/api/access-login";
 const tabs = [
   ["live", "Live Arena"],
   ["dashboard", "Dashboard"],
   ["schedule", "Schedule"],
   ["groups", "Groups"],
   ["results", "Results"],
-  ["console", "Scorer Console"],
+  ["console", "Admin / Scorer Login"],
 ];
 
 const state = loadState();
@@ -25,7 +25,7 @@ function loadState() {
     selectedCategory: "all",
     selectedDashboardCategory: "all",
     selectedGroupCategory: "Team Championship",
-    isScorerLoggedIn: getScorerSession()?.role === "scorer",
+    isScorerLoggedIn: hasUpdateAccess(),
     scorerError: "",
     fixtures,
   };
@@ -42,7 +42,7 @@ function loadState() {
       ...base,
       ...parsed,
       fixtures: mergedFixtures,
-      isScorerLoggedIn: getScorerSession()?.role === "scorer",
+      isScorerLoggedIn: hasUpdateAccess(),
       scorerError: "",
     };
   } catch {
@@ -67,6 +67,14 @@ function getScorerSession() {
   } catch {
     return null;
   }
+}
+
+function hasUpdateAccess() {
+  return ["admin", "scorer"].includes(getScorerSession()?.role);
+}
+
+function isLocalPreview() {
+  return ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
 }
 
 function getActiveMatch() {
@@ -550,24 +558,30 @@ function updateMatch(id, patch) {
   render();
 }
 
-async function loginScorer(passcode) {
+async function loginScorer(passcode, role = "scorer") {
   try {
     const response = await fetch(SCORER_AUTH_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passcode: passcode.trim() }),
+      body: JSON.stringify({ role, passcode: passcode.trim() }),
     });
 
     if (!response.ok) throw new Error("Login failed");
     const session = await response.json();
-    if (session?.role !== "scorer" || !session?.token) throw new Error("Invalid scorer session");
+    if (!["admin", "scorer"].includes(session?.role) || !session?.token) throw new Error("Invalid access session");
 
     sessionStorage.setItem(SCORER_SESSION_KEY, JSON.stringify(session));
     setState({ isScorerLoggedIn: true, scorerError: "" });
   } catch {
-    state.scorerError = "Scorer authentication is not configured yet or the passcode is invalid.";
+    state.scorerError = "Admin/scorer authentication is not configured yet or the passcode is invalid.";
     render();
   }
+}
+
+function loginLocalPreview(role = "scorer") {
+  if (!isLocalPreview()) return;
+  sessionStorage.setItem(SCORER_SESSION_KEY, JSON.stringify({ role, token: "local-preview" }));
+  setState({ isScorerLoggedIn: true, scorerError: "" });
 }
 
 function logoutScorer() {
@@ -604,7 +618,8 @@ function resetDemoData() {
 }
 
 function appShell(content) {
-  const accessLabel = state.isScorerLoggedIn ? "Scorer mode active" : `${state.fixtures.filter((m) => m.status === "Completed").length} results updated`;
+  const session = getScorerSession();
+  const accessLabel = state.isScorerLoggedIn ? `${session.role === "admin" ? "Admin" : "Scorer"} mode active` : `${state.fixtures.filter((m) => m.status === "Completed").length} results updated`;
   return `
     <header class="topbar">
       <div class="brand-lockup">
@@ -614,7 +629,10 @@ function appShell(content) {
         <h1>Badminton Live Portal</h1>
         </div>
       </div>
-      <div class="status-pill">${accessLabel}</div>
+      <div class="top-actions">
+        <div class="status-pill">${accessLabel}</div>
+        ${state.isScorerLoggedIn ? `<button class="login-shortcut" data-scorer-logout>Logout</button>` : `<button class="login-shortcut" data-tab="console">Admin / Scorer Login</button>`}
+      </div>
     </header>
     <nav class="tabs" aria-label="Main sections">
       ${tabs
@@ -635,21 +653,30 @@ function renderScorerLogin() {
   return `
     <section class="console-grid">
       <div class="panel scorer-login">
-        <h2>Scorer Login</h2>
-        <p class="muted">Residents can view the portal without login. Only authenticated scorers can update live scores, winners, line-ups, trump flags, and schedule details.</p>
-        <label>Scorer passcode
-          <input type="password" data-scorer-passcode placeholder="Enter scorer passcode" autocomplete="current-password" />
+        <h2>Admin / Scorer Login</h2>
+        <p class="muted">Residents can view the portal without login. Only authenticated admins or scorers can update live scores, winners, line-ups, trump flags, and schedule details.</p>
+        <label>Access role
+          <select data-access-role>
+            <option value="scorer">Scorer</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+        <label>Passcode
+          <input type="password" data-scorer-passcode placeholder="Enter admin/scorer passcode" autocomplete="current-password" />
         </label>
         ${state.scorerError ? `<p class="login-error">${state.scorerError}</p>` : ""}
         <div class="action-row">
-          <button data-scorer-login>Login as Scorer</button>
+          <button data-scorer-login>Login</button>
+          ${isLocalPreview() ? `<button data-local-preview-login>Use Local Preview Access</button>` : ""}
         </div>
+        ${isLocalPreview() ? `<p class="muted">Local preview access is only shown on localhost so you can test scorer controls before backend authentication is connected.</p>` : ""}
       </div>
       <aside class="panel">
         <h2>Public Access</h2>
         <div class="stack">
           <div class="access-row"><strong>Viewers</strong><span>Live view, schedule, groups, results, dashboard</span></div>
-          <div class="access-row"><strong>Scorers</strong><span>Score updates, winner marking, live match tracking</span></div>
+          <div class="access-row"><strong>Scorers</strong><span>Live score updates, winner marking, match tracking</span></div>
+          <div class="access-row"><strong>Admins</strong><span>Schedule changes, line-ups, trump flags, reset/demo controls</span></div>
         </div>
       </aside>
     </section>
@@ -855,11 +882,12 @@ function renderConsole() {
   const { sideA, sideB } = getDisplaySides(active);
   const dates = unique(state.fixtures.map((match) => match.date));
   const categories = unique(state.fixtures.map((match) => match.category));
+  const session = getScorerSession();
 
   return `
     <section class="console-grid">
       <div class="panel scorer">
-        <h2>Scorer Console</h2>
+        <h2>${session?.role === "admin" ? "Admin Console" : "Scorer Console"}</h2>
         <div class="action-row console-head-action">
           <button data-scorer-logout>Logout Scorer</button>
         </div>
@@ -967,11 +995,15 @@ function bindEvents() {
   });
 
   document.querySelector("[data-scorer-login]")?.addEventListener("click", () => {
-    loginScorer(document.querySelector("[data-scorer-passcode]")?.value || "");
+    loginScorer(document.querySelector("[data-scorer-passcode]")?.value || "", document.querySelector("[data-access-role]")?.value || "scorer");
   });
 
   document.querySelector("[data-scorer-passcode]")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") loginScorer(event.target.value || "");
+    if (event.key === "Enter") loginScorer(event.target.value || "", document.querySelector("[data-access-role]")?.value || "scorer");
+  });
+
+  document.querySelector("[data-local-preview-login]")?.addEventListener("click", () => {
+    loginLocalPreview(document.querySelector("[data-access-role]")?.value || "scorer");
   });
 
   document.querySelector("[data-scorer-logout]")?.addEventListener("click", logoutScorer);
