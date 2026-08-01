@@ -42,10 +42,10 @@ The logo asset is stored at `src/assets/npl-logo.jpeg`.
 
 ## Scorer Access
 
-Public viewers do not need to login. Scorer-only updates are hidden unless the
-browser has an authenticated scorer session. The frontend expects a backend
-endpoint at `/api/scorer-login` to validate scorer credentials and return a
-server-issued session, for example:
+Public viewers do not need to login. Admin/scorer update controls are hidden
+unless the browser has an authenticated admin or scorer session. The frontend
+expects a backend endpoint at `/api/access-login` to validate credentials and
+return a server-issued session, for example:
 
 ```json
 { "role": "scorer", "token": "server-issued-token" }
@@ -53,3 +53,7 @@ server-issued session, for example:
 
 For production, use Supabase, Firebase, or a backend API so credentials and role
 checks stay server-side.
+
+When running locally on `localhost`, the login screen also shows a local-preview
+access button so the protected scoring controls can be tested before the backend
+login endpoint is connected.
