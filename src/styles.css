@@ -716,16 +716,16 @@ th {
   margin: 8px 0;
 }
 
-.scorer label,
+.admin-console label,
 .form-grid label,
-.scorer-login label {
+.admin-login label {
   display: grid;
   gap: 8px;
   color: #526078;
   font-weight: 800;
 }
 
-.scorer-login {
+.admin-login {
   display: grid;
   gap: 14px;
   align-content: start;
