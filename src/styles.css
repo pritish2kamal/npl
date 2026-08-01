@@ -484,6 +484,11 @@ th {
   font-size: 12px;
 }
 
+.readonly-cell strong {
+  color: #2f2850;
+  font-size: 13px;
+}
+
 .trump-controls {
   display: grid;
   gap: 7px;
@@ -501,6 +506,19 @@ th {
 
 .trump-controls input {
   width: auto;
+}
+
+.trump-readonly,
+.score-readonly {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #f4efff;
+  color: #5b3ea6;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .trump-banner {
@@ -681,11 +699,48 @@ th {
 }
 
 .scorer label,
-.form-grid label {
+.form-grid label,
+.scorer-login label {
   display: grid;
   gap: 8px;
   color: #526078;
   font-weight: 800;
+}
+
+.scorer-login {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.login-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 900;
+}
+
+.access-row {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f8f5ff;
+}
+
+.access-row strong {
+  color: #2f2850;
+}
+
+.access-row span {
+  color: #675b86;
+}
+
+.console-head-action {
+  justify-content: flex-end;
+  margin-top: -8px;
 }
 
 .mobile-score {
