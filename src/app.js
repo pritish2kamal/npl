@@ -732,6 +732,7 @@ function renderLive() {
   return `
     <section class="live-grid">
       <div class="broadcast-frame">
+        <button class="fullscreen-live" data-live-fullscreen title="Open live view fullscreen">Fullscreen</button>
         <div class="score-overlay">
           <div>
             <span>${active.category}</span>
@@ -740,7 +741,11 @@ function renderLive() {
           <div class="scoreline">
             <b>${leftName}</b>
             <em>${leftScore}</em>
-            <span>:</span>
+            ${
+              state.isAdminLoggedIn
+                ? `<button class="swap-score-view" data-swap-sides="${active.id}" title="Swap screen sides">&lt;===&gt;</button>`
+                : `<span>:</span>`
+            }
             <em>${rightScore}</em>
             <b>${rightName}</b>
           </div>
@@ -1065,10 +1070,23 @@ function bindEvents() {
     button.addEventListener("click", () => updateMatch(getActiveMatch().id, { status: button.dataset.status }));
   });
 
-  document.querySelector("[data-swap-sides]")?.addEventListener("click", (event) => {
-    const match = state.fixtures.find((item) => item.id === event.currentTarget.dataset.swapSides);
-    if (!match) return;
-    updateMatch(match.id, { courtSwapped: !match.courtSwapped });
+  document.querySelectorAll("[data-swap-sides]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      const match = state.fixtures.find((item) => item.id === event.currentTarget.dataset.swapSides);
+      if (!match) return;
+      updateMatch(match.id, { courtSwapped: !match.courtSwapped });
+    });
+  });
+
+  document.querySelector("[data-live-fullscreen]")?.addEventListener("click", async () => {
+    const frame = document.querySelector(".broadcast-frame");
+    if (!frame?.requestFullscreen) return;
+    await frame.requestFullscreen();
+    try {
+      await screen.orientation?.lock?.("landscape");
+    } catch {
+      // Some mobile browsers only allow orientation changes through device rotation.
+    }
   });
 
   document.querySelectorAll("[data-winner]").forEach((button) => {
