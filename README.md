@@ -10,6 +10,8 @@ Responsive prototype for the in-house badminton tournament.
   choose actual players or pairs for each side.
 - Separate Dashboard page with all-category and category-filtered standings.
   Team Championship uses trump scoring; other categories use win-based points.
+- Public viewer mode is read-only; score and match updates require Scorer
+  Console login.
 - Group-wise player and team roster pages.
 - Results page with completed match list and simple standings.
 - Mobile scorer/organiser console for score updates, match status, and rescheduling.
@@ -37,3 +39,17 @@ For live multi-device usage, connect the same UI to a real-time backend such as
 Firebase, Supabase, or a Node API with WebSockets.
 
 The logo asset is stored at `src/assets/npl-logo.jpeg`.
+
+## Scorer Access
+
+Public viewers do not need to login. Scorer-only updates are hidden unless the
+browser has an authenticated scorer session. The frontend expects a backend
+endpoint at `/api/scorer-login` to validate scorer credentials and return a
+server-issued session, for example:
+
+```json
+{ "role": "scorer", "token": "server-issued-token" }
+```
+
+For production, use Supabase, Firebase, or a backend API so credentials and role
+checks stay server-side.
