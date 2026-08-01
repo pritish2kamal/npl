@@ -1,15 +1,15 @@
+import { adminUsers } from "./config/admin-users.js";
 import { fixtures, rosters, tournamentMeta } from "./data/tournament-data.js";
 
 const STORAGE_KEY = "npl-2026-state-v1";
-const SCORER_SESSION_KEY = "npl-2026-scorer-session";
-const SCORER_AUTH_ENDPOINT = "/api/access-login";
+const ADMIN_SESSION_KEY = "npl-2026-admin-session";
 const tabs = [
   ["live", "Live Arena"],
   ["dashboard", "Dashboard"],
   ["schedule", "Schedule"],
   ["groups", "Groups"],
   ["results", "Results"],
-  ["console", "Admin / Scorer Login"],
+  ["console", "Admin Login"],
 ];
 
 const state = loadState();
@@ -25,8 +25,8 @@ function loadState() {
     selectedCategory: "all",
     selectedDashboardCategory: "all",
     selectedGroupCategory: "Team Championship",
-    isScorerLoggedIn: hasUpdateAccess(),
-    scorerError: "",
+    isAdminLoggedIn: hasUpdateAccess(),
+    adminError: "",
     fixtures,
   };
 
@@ -42,8 +42,8 @@ function loadState() {
       ...base,
       ...parsed,
       fixtures: mergedFixtures,
-      isScorerLoggedIn: hasUpdateAccess(),
-      scorerError: "",
+      isAdminLoggedIn: hasUpdateAccess(),
+      adminError: "",
     };
   } catch {
     return base;
@@ -51,7 +51,7 @@ function loadState() {
 }
 
 function saveState() {
-  const { isScorerLoggedIn, scorerError, ...persistedState } = state;
+  const { isAdminLoggedIn, adminError, ...persistedState } = state;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedState));
 }
 
@@ -61,20 +61,17 @@ function setState(patch) {
   render();
 }
 
-function getScorerSession() {
+function getAdminSession() {
   try {
-    return JSON.parse(sessionStorage.getItem(SCORER_SESSION_KEY) || "null");
+    return JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || "null");
   } catch {
     return null;
   }
 }
 
 function hasUpdateAccess() {
-  return ["admin", "scorer"].includes(getScorerSession()?.role);
-}
-
-function isLocalPreview() {
-  return ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
+  const session = getAdminSession();
+  return session?.role === "admin" && adminUsers.some((user) => user.userId.toLowerCase() === String(session.userId || "").toLowerCase());
 }
 
 function getActiveMatch() {
@@ -182,7 +179,7 @@ function renderLineupCell(match) {
   const gameType = getGameType(match);
   const { sideA, sideB } = getDisplaySides(match);
 
-  if (!state.isScorerLoggedIn) {
+  if (!state.isAdminLoggedIn) {
     return `
       <div class="lineup-cell readonly-cell">
         <span class="game-type">${gameType}</span>
@@ -205,7 +202,7 @@ function renderTrumpControls(match) {
   if (match.category !== "Team Championship") return `<span class="muted">-</span>`;
   const parsed = parseTeamChampionship(match);
 
-  if (!state.isScorerLoggedIn) {
+  if (!state.isAdminLoggedIn) {
     const flags = getTrumpFlags(match);
     return flags.length ? flags.map((flag) => `<span class="trump-readonly">${flag.team}</span>`).join("") : `<span class="muted">Not marked</span>`;
   }
@@ -250,7 +247,7 @@ function renderTrumpBanner(match) {
 }
 
 function renderScoreCell(match, sideA, sideB) {
-  if (!state.isScorerLoggedIn) return `<span class="score-readonly">${match.scoreA} - ${match.scoreB}</span>`;
+  if (!state.isAdminLoggedIn) return `<span class="score-readonly">${match.scoreA} - ${match.scoreB}</span>`;
 
   return `
     <div class="inline-score">
@@ -262,7 +259,7 @@ function renderScoreCell(match, sideA, sideB) {
 }
 
 function renderWinnerCell(match, sideA, sideB) {
-  if (!state.isScorerLoggedIn) return `<span>${match.winner || "Pending"}</span>`;
+  if (!state.isAdminLoggedIn) return `<span>${match.winner || "Pending"}</span>`;
 
   return `
     <select data-schedule-winner="${match.id}">
@@ -552,41 +549,40 @@ function formatDateLabel(date) {
 }
 
 function updateMatch(id, patch) {
-  if (!state.isScorerLoggedIn) return;
+  if (!state.isAdminLoggedIn) return;
   state.fixtures = state.fixtures.map((match) => (match.id === id ? { ...match, ...patch } : match));
   saveState();
   render();
 }
 
-async function loginScorer(passcode, role = "scorer") {
-  try {
-    const response = await fetch(SCORER_AUTH_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role, passcode: passcode.trim() }),
-    });
+function findAdminUser(userId) {
+  const normalizedId = String(userId || "").trim().toLowerCase();
+  return adminUsers.find((user) => user.userId.toLowerCase() === normalizedId);
+}
 
-    if (!response.ok) throw new Error("Login failed");
-    const session = await response.json();
-    if (!["admin", "scorer"].includes(session?.role) || !session?.token) throw new Error("Invalid access session");
+function loginAdmin(userId) {
+  const adminUser = findAdminUser(userId);
 
-    sessionStorage.setItem(SCORER_SESSION_KEY, JSON.stringify(session));
-    setState({ isScorerLoggedIn: true, scorerError: "" });
-  } catch {
-    state.scorerError = "Admin/scorer authentication is not configured yet or the passcode is invalid.";
+  if (!adminUser) {
+    state.adminError = "This user ID is not listed in the admin config.";
     render();
+    return;
   }
+
+  sessionStorage.setItem(
+    ADMIN_SESSION_KEY,
+    JSON.stringify({
+      role: "admin",
+      userId: adminUser.userId,
+      displayName: adminUser.displayName,
+    })
+  );
+  setState({ isAdminLoggedIn: true, adminError: "" });
 }
 
-function loginLocalPreview(role = "scorer") {
-  if (!isLocalPreview()) return;
-  sessionStorage.setItem(SCORER_SESSION_KEY, JSON.stringify({ role, token: "local-preview" }));
-  setState({ isScorerLoggedIn: true, scorerError: "" });
-}
-
-function logoutScorer() {
-  sessionStorage.removeItem(SCORER_SESSION_KEY);
-  setState({ isScorerLoggedIn: false, scorerError: "" });
+function logoutAdmin() {
+  sessionStorage.removeItem(ADMIN_SESSION_KEY);
+  setState({ isAdminLoggedIn: false, adminError: "" });
 }
 
 function adjustScore(id, side, delta) {
@@ -611,15 +607,15 @@ function markFixtureWinner(id, winner) {
 }
 
 function resetDemoData() {
-  if (!state.isScorerLoggedIn) return;
+  if (!state.isAdminLoggedIn) return;
   localStorage.removeItem(STORAGE_KEY);
   Object.assign(state, loadState());
   render();
 }
 
 function appShell(content) {
-  const session = getScorerSession();
-  const accessLabel = state.isScorerLoggedIn ? `${session.role === "admin" ? "Admin" : "Scorer"} mode active` : `${state.fixtures.filter((m) => m.status === "Completed").length} results updated`;
+  const session = getAdminSession();
+  const accessLabel = state.isAdminLoggedIn ? `Admin mode: ${session?.displayName || session?.userId || "Active"}` : `${state.fixtures.filter((m) => m.status === "Completed").length} results updated`;
   return `
     <header class="topbar">
       <div class="brand-lockup">
@@ -631,7 +627,7 @@ function appShell(content) {
       </div>
       <div class="top-actions">
         <div class="status-pill">${accessLabel}</div>
-        ${state.isScorerLoggedIn ? `<button class="login-shortcut" data-scorer-logout>Logout</button>` : `<button class="login-shortcut" data-tab="console">Admin / Scorer Login</button>`}
+        ${state.isAdminLoggedIn ? `<button class="login-shortcut" data-admin-logout>Logout</button>` : `<button class="login-shortcut" data-tab="console">Admin Login</button>`}
       </div>
     </header>
     <nav class="tabs" aria-label="Main sections">
@@ -649,34 +645,25 @@ function appShell(content) {
   `;
 }
 
-function renderScorerLogin() {
+function renderAdminLogin() {
   return `
     <section class="console-grid">
-      <div class="panel scorer-login">
-        <h2>Admin / Scorer Login</h2>
-        <p class="muted">Residents can view the portal without login. Only authenticated admins or scorers can update live scores, winners, line-ups, trump flags, and schedule details.</p>
-        <label>Access role
-          <select data-access-role>
-            <option value="scorer">Scorer</option>
-            <option value="admin">Admin</option>
-          </select>
+      <div class="panel admin-login">
+        <h2>Admin Login</h2>
+        <p class="muted">Residents can view the portal without login. Only user IDs listed in the admin config can update live scores, winners, line-ups, trump flags, and schedule details.</p>
+        <label>Admin user ID
+          <input data-admin-user-id placeholder="Enter configured admin ID" autocomplete="username" />
         </label>
-        <label>Passcode
-          <input type="password" data-scorer-passcode placeholder="Enter admin/scorer passcode" autocomplete="current-password" />
-        </label>
-        ${state.scorerError ? `<p class="login-error">${state.scorerError}</p>` : ""}
+        ${state.adminError ? `<p class="login-error">${state.adminError}</p>` : ""}
         <div class="action-row">
-          <button data-scorer-login>Login</button>
-          ${isLocalPreview() ? `<button data-local-preview-login>Use Local Preview Access</button>` : ""}
+          <button data-admin-login>Login</button>
         </div>
-        ${isLocalPreview() ? `<p class="muted">Local preview access is only shown on localhost so you can test scorer controls before backend authentication is connected.</p>` : ""}
       </div>
       <aside class="panel">
         <h2>Public Access</h2>
         <div class="stack">
           <div class="access-row"><strong>Viewers</strong><span>Live view, schedule, groups, results, dashboard</span></div>
-          <div class="access-row"><strong>Scorers</strong><span>Live score updates, winner marking, match tracking</span></div>
-          <div class="access-row"><strong>Admins</strong><span>Schedule changes, line-ups, trump flags, reset/demo controls</span></div>
+          <div class="access-row"><strong>Admins</strong><span>Score updates, winner marking, line-ups, trump flags, and schedule changes</span></div>
         </div>
       </aside>
     </section>
@@ -758,7 +745,7 @@ function renderSchedule() {
       <div class="section-head">
         <div>
           <h2>Day-wise Schedule</h2>
-          <p class="muted">${state.isScorerLoggedIn ? "Scorer mode active. Update line-ups, trump flags, scores, and winners here." : "Public view. Scores and fixtures are read-only; scorers must login from Scorer Console to update live matches."}</p>
+          <p class="muted">${state.isAdminLoggedIn ? "Admin mode active. Update line-ups, trump flags, scores, and winners here." : "Public view. Scores and fixtures are read-only; Admin login is required for updates."}</p>
         </div>
         <div class="filters">
           <select data-filter="date">${dates.map((date) => `<option value="${date}" ${date === state.selectedDate ? "selected" : ""}>${date === "all" ? "All dates" : formatDateLabel(date)}</option>`).join("")}</select>
@@ -876,20 +863,20 @@ function renderResults() {
 }
 
 function renderConsole() {
-  if (!state.isScorerLoggedIn) return renderScorerLogin();
+  if (!state.isAdminLoggedIn) return renderAdminLogin();
 
   const active = getActiveMatch();
   const { sideA, sideB } = getDisplaySides(active);
   const dates = unique(state.fixtures.map((match) => match.date));
   const categories = unique(state.fixtures.map((match) => match.category));
-  const session = getScorerSession();
+  const session = getAdminSession();
 
   return `
     <section class="console-grid">
-      <div class="panel scorer">
-        <h2>${session?.role === "admin" ? "Admin Console" : "Scorer Console"}</h2>
+      <div class="panel admin-console">
+        <h2>Admin Console</h2>
         <div class="action-row console-head-action">
-          <button data-scorer-logout>Logout Scorer</button>
+          <button data-admin-logout>Logout Admin</button>
         </div>
         <label>Active match
           <select data-active-select>
@@ -994,19 +981,15 @@ function bindEvents() {
     setState({ activeMatchId: event.target.value });
   });
 
-  document.querySelector("[data-scorer-login]")?.addEventListener("click", () => {
-    loginScorer(document.querySelector("[data-scorer-passcode]")?.value || "", document.querySelector("[data-access-role]")?.value || "scorer");
+  document.querySelector("[data-admin-login]")?.addEventListener("click", () => {
+    loginAdmin(document.querySelector("[data-admin-user-id]")?.value || "");
   });
 
-  document.querySelector("[data-scorer-passcode]")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") loginScorer(event.target.value || "", document.querySelector("[data-access-role]")?.value || "scorer");
+  document.querySelector("[data-admin-user-id]")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") loginAdmin(event.target.value || "");
   });
 
-  document.querySelector("[data-local-preview-login]")?.addEventListener("click", () => {
-    loginLocalPreview(document.querySelector("[data-access-role]")?.value || "scorer");
-  });
-
-  document.querySelector("[data-scorer-logout]")?.addEventListener("click", logoutScorer);
+  document.querySelector("[data-admin-logout]")?.addEventListener("click", logoutAdmin);
 
   document.querySelectorAll("[data-score]").forEach((button) => {
     button.addEventListener("click", () => {
