@@ -102,6 +102,24 @@ function getDisplaySides(match) {
   };
 }
 
+function getLiveDisplay(match) {
+  const { sideA, sideB } = getDisplaySides(match);
+  if (!match.courtSwapped) {
+    return {
+      leftName: sideA,
+      leftScore: match.scoreA,
+      rightName: sideB,
+      rightScore: match.scoreB,
+    };
+  }
+  return {
+    leftName: sideB,
+    leftScore: match.scoreB,
+    rightName: sideA,
+    rightScore: match.scoreA,
+  };
+}
+
 function escapeAttr(value) {
   return String(value).replace(/"/g, "&quot;");
 }
@@ -706,7 +724,7 @@ function renderAdminLogin() {
 
 function renderLive() {
   const active = getActiveMatch();
-  const { sideA, sideB } = getDisplaySides(active);
+  const { leftName, leftScore, rightName, rightScore } = getLiveDisplay(active);
   const upcoming = state.fixtures.filter((match) => match.status === "Scheduled").slice(0, 5);
   const embedUrl = getYouTubeEmbedUrl(state.youtubeUrl);
   const showStream = state.streamEnabled && embedUrl;
@@ -720,11 +738,11 @@ function renderLive() {
             <strong>${active.date} ${active.time}</strong>
           </div>
           <div class="scoreline">
-            <b>${sideA}</b>
-            <em>${active.scoreA}</em>
+            <b>${leftName}</b>
+            <em>${leftScore}</em>
             <span>:</span>
-            <em>${active.scoreB}</em>
-            <b>${sideB}</b>
+            <em>${rightScore}</em>
+            <b>${rightName}</b>
           </div>
           <div class="match-state">${active.stage} | ${active.status}</div>
           ${renderLiveBadges(active)}
@@ -932,6 +950,11 @@ function renderConsole() {
           </div>
         </div>
         ${renderRuleCard(active)}
+        <div class="court-side-row">
+          <span>Screen sides</span>
+          <strong>${active.courtSwapped ? `${sideB} left, ${sideA} right` : `${sideA} left, ${sideB} right`}</strong>
+          <button data-swap-sides="${active.id}">${active.courtSwapped ? "Reset screen sides" : "Swap screen sides"}</button>
+        </div>
         <div class="action-row">
           <button data-status="Live">Start / Resume</button>
           <button data-winner="${sideA}">Winner: A</button>
@@ -1040,6 +1063,12 @@ function bindEvents() {
 
   document.querySelectorAll("[data-status]").forEach((button) => {
     button.addEventListener("click", () => updateMatch(getActiveMatch().id, { status: button.dataset.status }));
+  });
+
+  document.querySelector("[data-swap-sides]")?.addEventListener("click", (event) => {
+    const match = state.fixtures.find((item) => item.id === event.currentTarget.dataset.swapSides);
+    if (!match) return;
+    updateMatch(match.id, { courtSwapped: !match.courtSwapped });
   });
 
   document.querySelectorAll("[data-winner]").forEach((button) => {
