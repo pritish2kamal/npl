@@ -1,13 +1,15 @@
 import { fixtures, rosters, tournamentMeta } from "./data/tournament-data.js";
 
 const STORAGE_KEY = "npl-2026-state-v1";
+const SCORER_SESSION_KEY = "npl-2026-scorer-session";
+const SCORER_AUTH_ENDPOINT = "/api/scorer-login";
 const tabs = [
   ["live", "Live Arena"],
   ["dashboard", "Dashboard"],
   ["schedule", "Schedule"],
   ["groups", "Groups"],
   ["results", "Results"],
-  ["console", "Mobile Console"],
+  ["console", "Scorer Console"],
 ];
 
 const state = loadState();
@@ -23,6 +25,8 @@ function loadState() {
     selectedCategory: "all",
     selectedDashboardCategory: "all",
     selectedGroupCategory: "Team Championship",
+    isScorerLoggedIn: getScorerSession()?.role === "scorer",
+    scorerError: "",
     fixtures,
   };
 
@@ -34,20 +38,35 @@ function loadState() {
       ...match,
       ...(parsed.fixtures || []).find((item) => item.id === match.id),
     }));
-    return { ...base, ...parsed, fixtures: mergedFixtures };
+    return {
+      ...base,
+      ...parsed,
+      fixtures: mergedFixtures,
+      isScorerLoggedIn: getScorerSession()?.role === "scorer",
+      scorerError: "",
+    };
   } catch {
     return base;
   }
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const { isScorerLoggedIn, scorerError, ...persistedState } = state;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedState));
 }
 
 function setState(patch) {
   Object.assign(state, patch);
   saveState();
   render();
+}
+
+function getScorerSession() {
+  try {
+    return JSON.parse(sessionStorage.getItem(SCORER_SESSION_KEY) || "null");
+  } catch {
+    return null;
+  }
 }
 
 function getActiveMatch() {
@@ -151,9 +170,38 @@ function renderEntrantSelect(match, side) {
   `;
 }
 
+function renderLineupCell(match) {
+  const gameType = getGameType(match);
+  const { sideA, sideB } = getDisplaySides(match);
+
+  if (!state.isScorerLoggedIn) {
+    return `
+      <div class="lineup-cell readonly-cell">
+        <span class="game-type">${gameType}</span>
+        <strong>${sideA}</strong>
+        <strong>${sideB}</strong>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="lineup-cell">
+      <span class="game-type">${gameType}</span>
+      ${renderEntrantSelect(match, "A")}
+      ${renderEntrantSelect(match, "B")}
+    </div>
+  `;
+}
+
 function renderTrumpControls(match) {
   if (match.category !== "Team Championship") return `<span class="muted">-</span>`;
   const parsed = parseTeamChampionship(match);
+
+  if (!state.isScorerLoggedIn) {
+    const flags = getTrumpFlags(match);
+    return flags.length ? flags.map((flag) => `<span class="trump-readonly">${flag.team}</span>`).join("") : `<span class="muted">Not marked</span>`;
+  }
+
   return `
     <div class="trump-controls">
       <label>
@@ -190,6 +238,30 @@ function renderTrumpBanner(match) {
           : `<strong>Not marked yet</strong>`
       }
     </div>
+  `;
+}
+
+function renderScoreCell(match, sideA, sideB) {
+  if (!state.isScorerLoggedIn) return `<span class="score-readonly">${match.scoreA} - ${match.scoreB}</span>`;
+
+  return `
+    <div class="inline-score">
+      <input aria-label="${sideA} score" type="number" min="0" value="${match.scoreA}" data-inline-score="${match.id}:scoreA" />
+      <span>-</span>
+      <input aria-label="${sideB} score" type="number" min="0" value="${match.scoreB}" data-inline-score="${match.id}:scoreB" />
+    </div>
+  `;
+}
+
+function renderWinnerCell(match, sideA, sideB) {
+  if (!state.isScorerLoggedIn) return `<span>${match.winner || "Pending"}</span>`;
+
+  return `
+    <select data-schedule-winner="${match.id}">
+      <option value="">Pending</option>
+      <option value="${sideA}" ${match.winner === sideA ? "selected" : ""}>${sideA}</option>
+      <option value="${sideB}" ${match.winner === sideB ? "selected" : ""}>${sideB}</option>
+    </select>
   `;
 }
 
@@ -472,9 +544,35 @@ function formatDateLabel(date) {
 }
 
 function updateMatch(id, patch) {
+  if (!state.isScorerLoggedIn) return;
   state.fixtures = state.fixtures.map((match) => (match.id === id ? { ...match, ...patch } : match));
   saveState();
   render();
+}
+
+async function loginScorer(passcode) {
+  try {
+    const response = await fetch(SCORER_AUTH_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passcode: passcode.trim() }),
+    });
+
+    if (!response.ok) throw new Error("Login failed");
+    const session = await response.json();
+    if (session?.role !== "scorer" || !session?.token) throw new Error("Invalid scorer session");
+
+    sessionStorage.setItem(SCORER_SESSION_KEY, JSON.stringify(session));
+    setState({ isScorerLoggedIn: true, scorerError: "" });
+  } catch {
+    state.scorerError = "Scorer authentication is not configured yet or the passcode is invalid.";
+    render();
+  }
+}
+
+function logoutScorer() {
+  sessionStorage.removeItem(SCORER_SESSION_KEY);
+  setState({ isScorerLoggedIn: false, scorerError: "" });
 }
 
 function adjustScore(id, side, delta) {
@@ -499,12 +597,14 @@ function markFixtureWinner(id, winner) {
 }
 
 function resetDemoData() {
+  if (!state.isScorerLoggedIn) return;
   localStorage.removeItem(STORAGE_KEY);
   Object.assign(state, loadState());
   render();
 }
 
 function appShell(content) {
+  const accessLabel = state.isScorerLoggedIn ? "Scorer mode active" : `${state.fixtures.filter((m) => m.status === "Completed").length} results updated`;
   return `
     <header class="topbar">
       <div class="brand-lockup">
@@ -514,7 +614,7 @@ function appShell(content) {
         <h1>Badminton Live Portal</h1>
         </div>
       </div>
-      <div class="status-pill">${state.fixtures.filter((m) => m.status === "Completed").length} results updated</div>
+      <div class="status-pill">${accessLabel}</div>
     </header>
     <nav class="tabs" aria-label="Main sections">
       ${tabs
@@ -528,6 +628,31 @@ function appShell(content) {
         .join("")}
     </nav>
     <main>${content}</main>
+  `;
+}
+
+function renderScorerLogin() {
+  return `
+    <section class="console-grid">
+      <div class="panel scorer-login">
+        <h2>Scorer Login</h2>
+        <p class="muted">Residents can view the portal without login. Only authenticated scorers can update live scores, winners, line-ups, trump flags, and schedule details.</p>
+        <label>Scorer passcode
+          <input type="password" data-scorer-passcode placeholder="Enter scorer passcode" autocomplete="current-password" />
+        </label>
+        ${state.scorerError ? `<p class="login-error">${state.scorerError}</p>` : ""}
+        <div class="action-row">
+          <button data-scorer-login>Login as Scorer</button>
+        </div>
+      </div>
+      <aside class="panel">
+        <h2>Public Access</h2>
+        <div class="stack">
+          <div class="access-row"><strong>Viewers</strong><span>Live view, schedule, groups, results, dashboard</span></div>
+          <div class="access-row"><strong>Scorers</strong><span>Score updates, winner marking, live match tracking</span></div>
+        </div>
+      </aside>
+    </section>
   `;
 }
 
@@ -606,7 +731,7 @@ function renderSchedule() {
       <div class="section-head">
         <div>
           <h2>Day-wise Schedule</h2>
-          <p class="muted">Filter by day and category. Scores and winners can be updated here for matches already completed.</p>
+          <p class="muted">${state.isScorerLoggedIn ? "Scorer mode active. Update line-ups, trump flags, scores, and winners here." : "Public view. Scores and fixtures are read-only; scorers must login from Scorer Console to update live matches."}</p>
         </div>
         <div class="filters">
           <select data-filter="date">${dates.map((date) => `<option value="${date}" ${date === state.selectedDate ? "selected" : ""}>${date === "all" ? "All dates" : formatDateLabel(date)}</option>`).join("")}</select>
@@ -621,7 +746,6 @@ function renderSchedule() {
               .map((match) => {
                 const { sideA, sideB } = getDisplaySides(match);
                 const rule = getScoringRule(match);
-                const gameType = getGameType(match);
                 return `
                   <tr>
                     <td>${match.date}</td>
@@ -629,29 +753,11 @@ function renderSchedule() {
                     <td>${match.category}</td>
                     <td>${match.stage}</td>
                     <td>${match.match}</td>
-                    <td>
-                      <div class="lineup-cell">
-                        <span class="game-type">${gameType}</span>
-                        ${renderEntrantSelect(match, "A")}
-                        ${renderEntrantSelect(match, "B")}
-                      </div>
-                    </td>
+                    <td>${renderLineupCell(match)}</td>
                     <td>${renderTrumpControls(match)}</td>
                     <td><button class="rule-chip" title="${escapeAttr(rule.cap)}" data-active-match="${match.id}">${rule.target}</button></td>
-                    <td>
-                      <div class="inline-score">
-                        <input aria-label="${sideA} score" type="number" min="0" value="${match.scoreA}" data-inline-score="${match.id}:scoreA" />
-                        <span>-</span>
-                        <input aria-label="${sideB} score" type="number" min="0" value="${match.scoreB}" data-inline-score="${match.id}:scoreB" />
-                      </div>
-                    </td>
-                    <td>
-                      <select data-schedule-winner="${match.id}">
-                        <option value="">Pending</option>
-                        <option value="${sideA}" ${match.winner === sideA ? "selected" : ""}>${sideA}</option>
-                        <option value="${sideB}" ${match.winner === sideB ? "selected" : ""}>${sideB}</option>
-                      </select>
-                    </td>
+                    <td>${renderScoreCell(match, sideA, sideB)}</td>
+                    <td>${renderWinnerCell(match, sideA, sideB)}</td>
                     <td><span class="badge ${match.status.toLowerCase()}">${match.status}</span></td>
                   </tr>
                 `;
@@ -743,6 +849,8 @@ function renderResults() {
 }
 
 function renderConsole() {
+  if (!state.isScorerLoggedIn) return renderScorerLogin();
+
   const active = getActiveMatch();
   const { sideA, sideB } = getDisplaySides(active);
   const dates = unique(state.fixtures.map((match) => match.date));
@@ -752,6 +860,9 @@ function renderConsole() {
     <section class="console-grid">
       <div class="panel scorer">
         <h2>Scorer Console</h2>
+        <div class="action-row console-head-action">
+          <button data-scorer-logout>Logout Scorer</button>
+        </div>
         <label>Active match
           <select data-active-select>
             ${state.fixtures.map((match) => `<option value="${match.id}" ${match.id === active.id ? "selected" : ""}>${match.date} ${match.time} | ${match.category} | ${match.match}</option>`).join("")}
@@ -854,6 +965,16 @@ function bindEvents() {
   document.querySelector("[data-active-select]")?.addEventListener("change", (event) => {
     setState({ activeMatchId: event.target.value });
   });
+
+  document.querySelector("[data-scorer-login]")?.addEventListener("click", () => {
+    loginScorer(document.querySelector("[data-scorer-passcode]")?.value || "");
+  });
+
+  document.querySelector("[data-scorer-passcode]")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") loginScorer(event.target.value || "");
+  });
+
+  document.querySelector("[data-scorer-logout]")?.addEventListener("click", logoutScorer);
 
   document.querySelectorAll("[data-score]").forEach((button) => {
     button.addEventListener("click", () => {
