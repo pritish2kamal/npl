@@ -615,21 +615,31 @@ function formatDateLabel(date) {
   return date.replace("-26", " 2026");
 }
 
+function withYouTubePlayerParams(embedUrl) {
+  if (!embedUrl) return "";
+  const parsed = new URL(embedUrl);
+  parsed.searchParams.set("controls", "0");
+  parsed.searchParams.set("modestbranding", "1");
+  parsed.searchParams.set("rel", "0");
+  parsed.searchParams.set("playsinline", "1");
+  return parsed.href;
+}
+
 function getYouTubeEmbedUrl(url) {
   if (!url) return "";
 
   try {
     const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
-    if (parsed.hostname.includes("youtube.com") && parsed.pathname.startsWith("/embed/")) return parsed.href;
+    if (parsed.hostname.includes("youtube.com") && parsed.pathname.startsWith("/embed/")) return withYouTubePlayerParams(parsed.href);
 
     if (parsed.hostname.includes("youtube.com")) {
       const videoId = parsed.searchParams.get("v") || parsed.pathname.split("/").filter(Boolean).pop();
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : parsed.href;
+      return videoId ? withYouTubePlayerParams(`https://www.youtube.com/embed/${videoId}`) : parsed.href;
     }
 
     if (parsed.hostname.includes("youtu.be")) {
       const videoId = parsed.pathname.split("/").filter(Boolean)[0];
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : parsed.href;
+      return videoId ? withYouTubePlayerParams(`https://www.youtube.com/embed/${videoId}`) : parsed.href;
     }
 
     return parsed.href;
@@ -772,7 +782,7 @@ function renderLive() {
   return `
     <section class="live-grid">
       <div class="broadcast-frame">
-        <button class="fullscreen-live" data-live-fullscreen title="Open live view fullscreen">Fullscreen</button>
+        <button class="fullscreen-live" data-live-fullscreen title="Open live view with score overlay">Score Fullscreen</button>
         <div class="score-overlay">
           <div>
             <span>${active.category}</span>
@@ -795,7 +805,7 @@ function renderLive() {
         <div class="video-panel">
           ${
             showStream
-              ? `<iframe src="${embedUrl}" title="NPL YouTube live feed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`
+              ? `<iframe src="${embedUrl}" title="NPL YouTube live feed" allow="autoplay; encrypted-media; picture-in-picture"></iframe>`
               : `<div class="stream-fallback">
                   <img src="./src/assets/npl-logo.jpeg" alt="Nature Walk Premier League Badminton logo" />
                   <span>Live stream offline</span>
