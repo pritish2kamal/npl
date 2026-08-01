@@ -55,9 +55,9 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedState));
 }
 
-function setState(patch) {
+function setState(patch, options = {}) {
   Object.assign(state, patch);
-  saveState();
+  if (options.persist !== false) saveState();
   render();
 }
 
@@ -958,11 +958,17 @@ function render() {
 
 function bindEvents() {
   document.querySelectorAll("[data-tab]").forEach((button) => {
-    button.addEventListener("click", () => setState({ activeTab: button.dataset.tab }));
+    button.addEventListener("click", () => {
+      if (state.activeTab === button.dataset.tab) return;
+      setState({ activeTab: button.dataset.tab }, { persist: false });
+    });
   });
 
   document.querySelectorAll("[data-active-match]").forEach((button) => {
-    button.addEventListener("click", () => setState({ activeMatchId: button.dataset.activeMatch, activeTab: "live" }));
+    button.addEventListener("click", () => {
+      if (state.activeMatchId === button.dataset.activeMatch && state.activeTab === "live") return;
+      setState({ activeMatchId: button.dataset.activeMatch, activeTab: "live" }, { persist: false });
+    });
   });
 
   document.querySelectorAll("[data-filter]").forEach((input) => {
