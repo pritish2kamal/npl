@@ -1055,6 +1055,15 @@ function renderConsole() {
 
   const active = getActiveMatch();
   const { sideA, sideB } = getDisplaySides(active);
+  const scorePads = active.courtSwapped
+    ? [
+        { side: "B", name: sideB, score: active.scoreB },
+        { side: "A", name: sideA, score: active.scoreA },
+      ]
+    : [
+        { side: "A", name: sideA, score: active.scoreA },
+        { side: "B", name: sideB, score: active.scoreB },
+      ];
   const dates = unique(state.fixtures.map((match) => match.date));
   const categories = unique(state.fixtures.map((match) => match.category));
   const session = getAdminSession();
@@ -1072,17 +1081,18 @@ function renderConsole() {
           </select>
         </label>
         <div class="mobile-score">
-          <div class="score-control-row" data-score-pad="${active.id}:A:1">
-            <strong>${sideA}</strong>
-            <span>${active.scoreA}</span>
-            <button class="score-add" data-score="${active.id}:A:1">+1</button>
-            <button class="score-minus" aria-label="Reduce ${sideA} score" data-score="${active.id}:A:-1">-</button>
+          <div class="score-control-row" data-score-pad="${active.id}:${scorePads[0].side}:1">
+            <strong>${scorePads[0].name}</strong>
+            <span>${scorePads[0].score}</span>
+            <button class="score-add" data-score="${active.id}:${scorePads[0].side}:1">+1</button>
+            <button class="score-minus" aria-label="Reduce ${scorePads[0].name} score" data-score="${active.id}:${scorePads[0].side}:-1">-</button>
           </div>
-          <div class="score-control-row" data-score-pad="${active.id}:B:1">
-            <strong>${sideB}</strong>
-            <span>${active.scoreB}</span>
-            <button class="score-add" data-score="${active.id}:B:1">+1</button>
-            <button class="score-minus" aria-label="Reduce ${sideB} score" data-score="${active.id}:B:-1">-</button>
+          <button class="scorer-swap-button" data-swap-sides="${active.id}" title="Swap scoring sides">&lt;==&gt;</button>
+          <div class="score-control-row" data-score-pad="${active.id}:${scorePads[1].side}:1">
+            <strong>${scorePads[1].name}</strong>
+            <span>${scorePads[1].score}</span>
+            <button class="score-add" data-score="${active.id}:${scorePads[1].side}:1">+1</button>
+            <button class="score-minus" aria-label="Reduce ${scorePads[1].name} score" data-score="${active.id}:${scorePads[1].side}:-1">-</button>
           </div>
         </div>
         ${renderRuleCard(active)}
@@ -1217,6 +1227,7 @@ function bindEvents() {
 
   document.querySelectorAll("[data-swap-sides]").forEach((button) => {
     button.addEventListener("click", (event) => {
+      event.stopPropagation();
       const match = state.fixtures.find((item) => item.id === event.currentTarget.dataset.swapSides);
       if (!match) return;
       updateMatch(match.id, { courtSwapped: !match.courtSwapped });
