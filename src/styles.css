@@ -192,43 +192,73 @@ button {
   background: #05030d;
 }
 
-.broadcast-frame:fullscreen {
-  width: 100vw;
-  height: 100vh;
-  padding: 0;
+:root:fullscreen {
   background: #05030d;
 }
 
-.broadcast-frame:-webkit-full-screen {
-  width: 100vw;
-  height: 100vh;
-  padding: 0;
+:root:-webkit-full-screen {
   background: #05030d;
 }
 
-.broadcast-frame:fullscreen .video-panel,
-.broadcast-frame:fullscreen .video-panel iframe {
+:root:fullscreen body,
+:root:-webkit-full-screen body {
+  overflow: hidden;
+}
+
+:root:fullscreen #app,
+:root:-webkit-full-screen #app {
+  width: 100vw;
+  height: 100vh;
+  padding: 0;
+  max-width: none;
+  background: #05030d;
+}
+
+:root:fullscreen .topbar,
+:root:fullscreen .tabs,
+:root:fullscreen .live-grid > aside,
+:root:-webkit-full-screen .topbar,
+:root:-webkit-full-screen .tabs,
+:root:-webkit-full-screen .live-grid > aside {
+  display: none;
+}
+
+:root:fullscreen main[data-view="live"],
+:root:-webkit-full-screen main[data-view="live"] {
+  width: 100vw;
+  height: 100vh;
+}
+
+:root:fullscreen .live-grid,
+:root:-webkit-full-screen .live-grid {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+:root:fullscreen .broadcast-frame,
+:root:-webkit-full-screen .broadcast-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  background: #05030d;
+}
+
+:root:fullscreen .video-panel,
+:root:fullscreen .video-panel iframe,
+:root:-webkit-full-screen .video-panel,
+:root:-webkit-full-screen .video-panel iframe {
   width: 100vw;
   height: 100vh;
   min-height: 100vh;
   border-radius: 0;
 }
 
-.broadcast-frame:-webkit-full-screen .video-panel,
-.broadcast-frame:-webkit-full-screen .video-panel iframe {
-  width: 100vw;
-  height: 100vh;
-  min-height: 100vh;
-  border-radius: 0;
-}
-
-.broadcast-frame:fullscreen .score-overlay {
-  top: 12px;
-  left: 12px;
-  right: 12px;
-}
-
-.broadcast-frame:-webkit-full-screen .score-overlay {
+:root:fullscreen .score-overlay,
+:root:-webkit-full-screen .score-overlay {
   top: 12px;
   left: 12px;
   right: 12px;
