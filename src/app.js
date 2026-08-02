@@ -857,7 +857,7 @@ function appShell(content) {
   return `
     <header class="topbar">
       <div class="brand-lockup">
-        <img class="npl-logo" src="./src/assets/npl-logo.jpeg" alt="Nature Walk Premier League Badminton logo" />
+        <img class="npl-logo" src="./src/assets/npl-logo-clean.png" alt="Nature Walk Premier League Badminton logo" />
         <div>
         <p class="eyebrow">${tournamentMeta.eventName}</p>
         <h1>Badminton Live Portal</h1>
@@ -943,7 +943,7 @@ function renderLive() {
             showStream
               ? `<iframe src="${embedUrl}" title="NPL YouTube live feed" allow="autoplay; encrypted-media; picture-in-picture"></iframe>`
               : `<div class="stream-fallback">
-                  <img src="./src/assets/npl-logo.jpeg" alt="Nature Walk Premier League Badminton logo" />
+                  <img src="./src/assets/npl-logo-clean.png" alt="Nature Walk Premier League Badminton logo" />
                   <span>Live stream offline</span>
                   <h2>Scores and schedule are still available</h2>
                   <p>YouTube streaming can be enabled again from the Mobile Console once the live feed resumes.</p>

@@ -66,9 +66,9 @@ button {
 }
 
 .npl-logo {
-  width: 76px;
-  height: 96px;
-  object-fit: cover;
+  width: 68px;
+  height: 104px;
+  object-fit: contain;
   object-position: center;
   border: 2px solid #ffffff;
   border-radius: 12px;
