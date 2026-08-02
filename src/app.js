@@ -1055,6 +1055,7 @@ function renderConsole() {
 
   const active = getActiveMatch();
   const { sideA, sideB } = getDisplaySides(active);
+  const statusActionLabel = active.status === "Live" ? "Match Live" : active.status === "Postponed" || active.status === "Rescheduled" ? "Resume Match" : "Start Match";
   const scorePads = active.courtSwapped
     ? [
         { side: "B", name: sideB, score: active.scoreB },
@@ -1102,9 +1103,9 @@ function renderConsole() {
           <button data-swap-sides="${active.id}">${active.courtSwapped ? "Reset screen sides" : "Swap screen sides"}</button>
         </div>
         <div class="action-row">
-          <button data-status="Live">Start / Resume</button>
-          <button data-winner="${sideA}">Winner: A</button>
-          <button data-winner="${sideB}">Winner: B</button>
+          <button data-status="Live">${statusActionLabel}</button>
+          <button data-winner="${sideA}">Winner: ${sideA}</button>
+          <button data-winner="${sideB}">Winner: ${sideB}</button>
         </div>
       </div>
       <div class="panel">
