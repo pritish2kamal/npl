@@ -326,6 +326,17 @@ function renderWinnerCell(match, sideA, sideB) {
   `;
 }
 
+function renderStatusCell(match) {
+  const badge = `<span class="badge ${match.status.toLowerCase()}">${match.status}</span>`;
+  if (!state.isAdminLoggedIn || match.status === "Completed") return badge;
+  return `
+    <div class="status-cell">
+      ${badge}
+      <button data-postpone="${match.id}">Postpone</button>
+    </div>
+  `;
+}
+
 function calculateTeamStandings() {
   const standings = Object.keys(rosters["Team Championship"] || {}).map((team) => ({
     team,
@@ -339,7 +350,7 @@ function calculateTeamStandings() {
   const byTeam = Object.fromEntries(standings.map((row) => [row.team, row]));
 
   state.fixtures
-    .filter((match) => match.category === "Team Championship" && (match.status === "Completed" || Number(match.scoreA) !== Number(match.scoreB)))
+    .filter((match) => match.category === "Team Championship" && match.status === "Completed")
     .forEach((match) => {
       const parsed = parseTeamChampionship(match);
       const { sideA, sideB } = getDisplaySides(match);
@@ -377,7 +388,7 @@ function calculateCategoryStandings(category) {
 
   const rows = {};
   state.fixtures
-    .filter((match) => match.category === category && (match.status === "Completed" || Number(match.scoreA) !== Number(match.scoreB)))
+    .filter((match) => match.category === category && match.status === "Completed")
     .forEach((match) => {
       const { sideA, sideB } = getDisplaySides(match);
       const scoreWinner = Number(match.scoreA) > Number(match.scoreB) ? sideA : Number(match.scoreB) > Number(match.scoreA) ? sideB : "";
@@ -603,6 +614,49 @@ function renderLiveBadges(match) {
   `;
 }
 
+function getRaceTarget(match) {
+  const target = getScoringRule(match).target.match(/race to\s+(\d+)/i)?.[1] || getScoringRule(match).target.match(/(\d+)/)?.[1];
+  return Number(target || 0);
+}
+
+function getScoreWinner(match) {
+  const scoreA = Number(match.scoreA || 0);
+  const scoreB = Number(match.scoreB || 0);
+  const { sideA, sideB } = getDisplaySides(match);
+  if (scoreA === scoreB) return "";
+  return scoreA > scoreB ? sideA : sideB;
+}
+
+function hasReachedCompletionScore(match) {
+  const target = getRaceTarget(match);
+  if (!target) return false;
+  return Number(match.scoreA || 0) !== Number(match.scoreB || 0) && Math.max(Number(match.scoreA || 0), Number(match.scoreB || 0)) >= target;
+}
+
+function getNextDateLabel(dateLabel) {
+  const monthMap = {
+    Jan: 0,
+    Feb: 1,
+    Mar: 2,
+    Apr: 3,
+    May: 4,
+    Jun: 5,
+    Jul: 6,
+    Aug: 7,
+    Sep: 8,
+    Oct: 9,
+    Nov: 10,
+    Dec: 11,
+  };
+  const [day, month, year] = String(dateLabel).split("-");
+  const date = new Date(2000 + Number(year), monthMap[month] ?? 0, Number(day));
+  date.setDate(date.getDate() + 1);
+  const nextDay = String(date.getDate()).padStart(2, "0");
+  const nextMonth = Object.entries(monthMap).find(([, index]) => index === date.getMonth())?.[0] || month;
+  const nextYear = String(date.getFullYear()).slice(-2);
+  return `${nextDay}-${nextMonth}-${nextYear}`;
+}
+
 function filteredFixtures() {
   return state.fixtures.filter((match) => {
     const dateMatch = state.selectedDate === "all" || match.date === state.selectedDate;
@@ -690,20 +744,47 @@ function adjustScore(id, side, delta) {
   const match = state.fixtures.find((item) => item.id === id);
   if (!match) return;
   const key = side === "A" ? "scoreA" : "scoreB";
-  updateMatch(id, { [key]: Math.max(0, Number(match[key] || 0) + delta), status: "Live" });
+  const nextScore = Math.max(0, Number(match[key] || 0) + delta);
+  const nextMatch = { ...match, [key]: nextScore };
+  const patch = { [key]: nextScore, status: "Live", winner: "" };
+  if (hasReachedCompletionScore(nextMatch)) {
+    patch.status = "Completed";
+    patch.winner = getScoreWinner(nextMatch);
+  }
+  updateMatch(id, patch);
 }
 
 function completeActiveMatch(winner) {
   const active = getActiveMatch();
+  if (!hasReachedCompletionScore(active)) {
+    alert(`This match cannot be completed until a player/team reaches ${getRaceTarget(active)} points.`);
+    return;
+  }
   updateMatch(active.id, { status: "Completed", winner });
 }
 
 function markFixtureWinner(id, winner) {
   const match = state.fixtures.find((item) => item.id === id);
   if (!match) return;
+  if (winner && !hasReachedCompletionScore(match)) {
+    alert(`Enter a score reaching ${getRaceTarget(match)} before marking this match completed.`);
+    render();
+    return;
+  }
   updateMatch(id, {
     status: winner ? "Completed" : "Scheduled",
     winner,
+  });
+}
+
+function postponeMatch(id) {
+  const match = state.fixtures.find((item) => item.id === id);
+  if (!match) return;
+  const nextDate = getNextDateLabel(match.date);
+  updateMatch(id, {
+    date: nextDate,
+    status: "Postponed",
+    notes: `${match.notes ? `${match.notes}\n` : ""}Postponed from ${match.date} ${match.time} to ${nextDate} ${match.time}.`,
   });
 }
 
@@ -879,7 +960,7 @@ function renderSchedule() {
                     <td><button class="rule-chip" title="${escapeAttr(rule.cap)}" data-active-match="${match.id}">${rule.target}</button></td>
                     <td>${renderScoreCell(match, sideA, sideB)}</td>
                     <td>${renderWinnerCell(match, sideA, sideB)}</td>
-                    <td><span class="badge ${match.status.toLowerCase()}">${match.status}</span></td>
+                    <td>${renderStatusCell(match)}</td>
                   </tr>
                 `;
               })
@@ -1047,6 +1128,7 @@ function renderConsole() {
         </div>
         <div class="action-row">
           <button data-save-edits="${active.id}">Save Changes</button>
+          <button data-postpone="${active.id}">Postpone to next day</button>
           <button data-status="Rescheduled">Mark Rescheduled</button>
           <button data-reset>Reset Demo Data</button>
         </div>
@@ -1120,6 +1202,10 @@ function bindEvents() {
     button.addEventListener("click", () => updateMatch(getActiveMatch().id, { status: button.dataset.status }));
   });
 
+  document.querySelectorAll("[data-postpone]").forEach((button) => {
+    button.addEventListener("click", () => postponeMatch(button.dataset.postpone));
+  });
+
   document.querySelectorAll("[data-swap-sides]").forEach((button) => {
     button.addEventListener("click", (event) => {
       const match = state.fixtures.find((item) => item.id === event.currentTarget.dataset.swapSides);
@@ -1161,10 +1247,13 @@ function bindEvents() {
       const match = state.fixtures.find((item) => item.id === id);
       const patch = { [key]: Math.max(0, Number(input.value || 0)) };
       const nextMatch = { ...match, ...patch };
-      const { sideA, sideB } = getDisplaySides(nextMatch);
-      if (Number(nextMatch.scoreA) > Number(nextMatch.scoreB)) patch.winner = sideA;
-      if (Number(nextMatch.scoreB) > Number(nextMatch.scoreA)) patch.winner = sideB;
-      if (Number(nextMatch.scoreA) !== Number(nextMatch.scoreB)) patch.status = "Completed";
+      if (hasReachedCompletionScore(nextMatch)) {
+        patch.winner = getScoreWinner(nextMatch);
+        patch.status = "Completed";
+      } else {
+        patch.winner = "";
+        patch.status = Number(nextMatch.scoreA) || Number(nextMatch.scoreB) ? "Live" : "Scheduled";
+      }
       updateMatch(id, patch);
     });
   });
