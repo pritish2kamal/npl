@@ -16,6 +16,7 @@ const tabs = [
 const state = loadState();
 let isRemoteStateEnabled = false;
 let isApplyingRemoteState = false;
+let isNavigationBound = false;
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -1162,21 +1163,29 @@ function render() {
   bindEvents();
 }
 
+function bindPersistentNavigation() {
+  if (isNavigationBound) return;
+  isNavigationBound = true;
+
+  document.addEventListener("click", (event) => {
+    const tabButton = event.target.closest("[data-tab]");
+    if (tabButton) {
+      event.preventDefault();
+      if (state.activeTab === tabButton.dataset.tab) return;
+      setState({ activeTab: tabButton.dataset.tab }, { persist: false });
+      return;
+    }
+
+    const activeMatchButton = event.target.closest("[data-active-match]");
+    if (activeMatchButton) {
+      event.preventDefault();
+      if (state.activeMatchId === activeMatchButton.dataset.activeMatch && state.activeTab === "live") return;
+      setState({ activeMatchId: activeMatchButton.dataset.activeMatch, activeTab: "live" }, { persist: false });
+    }
+  });
+}
+
 function bindEvents() {
-  document.querySelectorAll("[data-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (state.activeTab === button.dataset.tab) return;
-      setState({ activeTab: button.dataset.tab }, { persist: false });
-    });
-  });
-
-  document.querySelectorAll("[data-active-match]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (state.activeMatchId === button.dataset.activeMatch && state.activeTab === "live") return;
-      setState({ activeMatchId: button.dataset.activeMatch, activeTab: "live" }, { persist: false });
-    });
-  });
-
   document.querySelectorAll("[data-filter]").forEach((input) => {
     input.addEventListener("change", () => setState({ [`selected${input.dataset.filter[0].toUpperCase()}${input.dataset.filter.slice(1)}`]: input.value }));
   });
@@ -1308,6 +1317,7 @@ function bindEvents() {
 }
 
 async function startApp() {
+  bindPersistentNavigation();
   render();
   isRemoteStateEnabled = await initFirebaseState();
   if (!isRemoteStateEnabled) return;
