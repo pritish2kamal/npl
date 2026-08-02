@@ -809,11 +809,11 @@ function getYouTubeEmbedUrl(url) {
   }
 }
 
-function updateMatch(id, patch) {
+function updateMatch(id, patch, options = {}) {
   if (!state.isAdminLoggedIn) return;
   state.fixtures = state.fixtures.map((match) => (match.id === id ? { ...match, ...patch } : match));
   saveState();
-  render();
+  if (options.render !== false) render();
   syncSharedState();
 }
 
@@ -830,6 +830,21 @@ async function openScoreFullscreen() {
 
 function isScoreFullscreenActive() {
   return document.fullscreenElement?.classList?.contains("broadcast-frame");
+}
+
+function refreshLiveScoreOverlay(match) {
+  if (!match || match.id !== state.activeMatchId) return;
+  const { leftName, leftScore, rightName, rightScore } = getLiveDisplay(match);
+  const updates = {
+    "[data-live-left-name]": leftName,
+    "[data-live-left-score]": leftScore,
+    "[data-live-right-score]": rightScore,
+    "[data-live-right-name]": rightName,
+  };
+  Object.entries(updates).forEach(([selector, value]) => {
+    const element = document.querySelector(selector);
+    if (element) element.textContent = value;
+  });
 }
 
 function updateRoster(category, group, rosterText) {
@@ -1026,15 +1041,15 @@ function renderLive() {
             ${renderLiveBadges(active)}
           </div>
           <div class="scoreline">
-            <b>${leftName}</b>
-            <em>${leftScore}</em>
+            <b data-live-left-name>${leftName}</b>
+            <em data-live-left-score>${leftScore}</em>
             ${
               state.isAdminLoggedIn
                 ? `<button class="swap-score-view" data-swap-sides="${active.id}" title="Swap screen sides">&lt;===&gt;</button>`
                 : `<span>:</span>`
             }
-            <em>${rightScore}</em>
-            <b>${rightName}</b>
+            <em data-live-right-score>${rightScore}</em>
+            <b data-live-right-name>${rightName}</b>
           </div>
           <div class="match-state">
             <span>${active.stage}</span>
@@ -1439,11 +1454,12 @@ function bindEvents() {
       event.stopPropagation();
       const match = state.fixtures.find((item) => item.id === event.currentTarget.dataset.swapSides);
       if (!match) return;
-      const restoreFullscreen = isScoreFullscreenActive();
-      updateMatch(match.id, { courtSwapped: !match.courtSwapped });
-      if (restoreFullscreen) {
-        await openScoreFullscreen();
+      if (isScoreFullscreenActive()) {
+        updateMatch(match.id, { courtSwapped: !match.courtSwapped }, { render: false });
+        refreshLiveScoreOverlay(state.fixtures.find((item) => item.id === match.id));
+        return;
       }
+      updateMatch(match.id, { courtSwapped: !match.courtSwapped });
     });
   });
 
