@@ -818,9 +818,9 @@ function updateMatch(id, patch, options = {}) {
 }
 
 async function openScoreFullscreen() {
-  const frame = document.querySelector(".broadcast-frame");
-  if (!frame?.requestFullscreen) return;
-  await frame.requestFullscreen();
+  const target = document.documentElement;
+  if (!target?.requestFullscreen) return;
+  await target.requestFullscreen();
   try {
     await screen.orientation?.lock?.("landscape");
   } catch {
@@ -829,7 +829,7 @@ async function openScoreFullscreen() {
 }
 
 function isScoreFullscreenActive() {
-  return document.fullscreenElement?.classList?.contains("broadcast-frame");
+  return Boolean(document.fullscreenElement) && state.activeTab === "live";
 }
 
 function refreshLiveScoreOverlay(match) {
