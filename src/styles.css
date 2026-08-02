@@ -105,6 +105,21 @@ button {
   white-space: nowrap;
 }
 
+.status-cell {
+  display: grid;
+  gap: 7px;
+  justify-items: start;
+}
+
+.status-cell button {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #eee7ff;
+  color: #5b3ea6;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .tabs {
   display: flex;
   gap: 8px;
