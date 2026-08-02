@@ -121,6 +121,8 @@ button {
 }
 
 .tabs {
+  position: relative;
+  z-index: 10;
   display: flex;
   gap: 8px;
   padding: 8px;
