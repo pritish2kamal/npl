@@ -824,7 +824,7 @@ function appShell(content) {
         )
         .join("")}
     </nav>
-    <main>${content}</main>
+    <main data-view="${state.activeTab}">${content}</main>
   `;
 }
 
@@ -1146,6 +1146,7 @@ function render() {
     results: renderResults,
     console: renderConsole,
   };
+  document.body.dataset.view = state.activeTab;
   document.querySelector("#app").innerHTML = appShell(views[state.activeTab]());
   bindEvents();
 }
