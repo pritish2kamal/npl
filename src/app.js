@@ -1072,17 +1072,17 @@ function renderConsole() {
           </select>
         </label>
         <div class="mobile-score">
-          <div>
+          <div class="score-control-row">
             <strong>${sideA}</strong>
             <span>${active.scoreA}</span>
-            <button data-score="${active.id}:A:1">+1</button>
-            <button data-score="${active.id}:A:-1">-1</button>
+            <button class="score-add" data-score="${active.id}:A:1">+1</button>
+            <button class="score-minus" aria-label="Reduce ${sideA} score" data-score="${active.id}:A:-1">-</button>
           </div>
-          <div>
+          <div class="score-control-row">
             <strong>${sideB}</strong>
             <span>${active.scoreB}</span>
-            <button data-score="${active.id}:B:1">+1</button>
-            <button data-score="${active.id}:B:-1">-1</button>
+            <button class="score-add" data-score="${active.id}:B:1">+1</button>
+            <button class="score-minus" aria-label="Reduce ${sideB} score" data-score="${active.id}:B:-1">-</button>
           </div>
         </div>
         ${renderRuleCard(active)}
