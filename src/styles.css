@@ -120,6 +120,14 @@ button {
   font-weight: 900;
 }
 
+.postpone-date-select {
+  min-width: 126px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .tabs {
   position: relative;
   z-index: 10;
@@ -841,6 +849,26 @@ th {
 
 .group-card li {
   margin: 8px 0;
+}
+
+.roster-editor-label {
+  display: grid;
+  gap: 8px;
+  color: #5a4a82;
+  font-weight: 800;
+}
+
+.roster-editor-label span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.roster-editor {
+  min-height: 170px;
+  font-size: 13px;
+  line-height: 1.45;
+  background: #ffffff;
 }
 
 .admin-console label,
