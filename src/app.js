@@ -4,6 +4,7 @@ import { initFirebaseState, readSharedState, subscribeSharedState, writeSharedSt
 
 const STORAGE_KEY = "npl-2026-state-v1";
 const ADMIN_SESSION_KEY = "npl-2026-admin-session";
+const VERSION_CHECK_INTERVAL_MS = 60_000;
 const tabs = [
   ["live", "Live Arena"],
   ["dashboard", "Dashboard"],
@@ -17,6 +18,7 @@ const state = loadState();
 let isRemoteStateEnabled = false;
 let isApplyingRemoteState = false;
 let isNavigationBound = false;
+let deployedVersion = "";
 
 function cloneRosters(source = defaultRosters) {
   return JSON.parse(JSON.stringify(source || {}));
@@ -1485,6 +1487,7 @@ function bindEvents() {
 async function startApp() {
   bindPersistentNavigation();
   render();
+  startVersionWatcher();
   isRemoteStateEnabled = await initFirebaseState();
   if (!isRemoteStateEnabled) return;
 
@@ -1501,6 +1504,38 @@ async function startApp() {
     applySharedState(nextSharedState);
     isApplyingRemoteState = false;
     render();
+  });
+}
+
+async function readDeployedVersion() {
+  try {
+    const response = await fetch(`./version.json?t=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) return "";
+    const data = await response.json();
+    return data.version || data.commit || "";
+  } catch {
+    return "";
+  }
+}
+
+async function checkForNewVersion() {
+  if (state.isAdminLoggedIn) return;
+  const latestVersion = await readDeployedVersion();
+  if (!latestVersion) return;
+  if (!deployedVersion) {
+    deployedVersion = latestVersion;
+    return;
+  }
+  if (latestVersion !== deployedVersion) {
+    window.location.reload();
+  }
+}
+
+function startVersionWatcher() {
+  checkForNewVersion();
+  window.setInterval(checkForNewVersion, VERSION_CHECK_INTERVAL_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkForNewVersion();
   });
 }
 
