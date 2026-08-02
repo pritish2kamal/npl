@@ -817,6 +817,21 @@ function updateMatch(id, patch) {
   syncSharedState();
 }
 
+async function openScoreFullscreen() {
+  const frame = document.querySelector(".broadcast-frame");
+  if (!frame?.requestFullscreen) return;
+  await frame.requestFullscreen();
+  try {
+    await screen.orientation?.lock?.("landscape");
+  } catch {
+    // Some mobile browsers only allow orientation changes through device rotation.
+  }
+}
+
+function isScoreFullscreenActive() {
+  return document.fullscreenElement?.classList?.contains("broadcast-frame");
+}
+
 function updateRoster(category, group, rosterText) {
   if (!state.isAdminLoggedIn) return;
   const players = String(rosterText || "")
@@ -1420,23 +1435,20 @@ function bindEvents() {
   });
 
   document.querySelectorAll("[data-swap-sides]").forEach((button) => {
-    button.addEventListener("click", (event) => {
+    button.addEventListener("click", async (event) => {
       event.stopPropagation();
       const match = state.fixtures.find((item) => item.id === event.currentTarget.dataset.swapSides);
       if (!match) return;
+      const restoreFullscreen = isScoreFullscreenActive();
       updateMatch(match.id, { courtSwapped: !match.courtSwapped });
+      if (restoreFullscreen) {
+        await openScoreFullscreen();
+      }
     });
   });
 
   document.querySelector("[data-live-fullscreen]")?.addEventListener("click", async () => {
-    const frame = document.querySelector(".broadcast-frame");
-    if (!frame?.requestFullscreen) return;
-    await frame.requestFullscreen();
-    try {
-      await screen.orientation?.lock?.("landscape");
-    } catch {
-      // Some mobile browsers only allow orientation changes through device rotation.
-    }
+    await openScoreFullscreen();
   });
 
   document.querySelectorAll("[data-winner]").forEach((button) => {
