@@ -841,11 +841,17 @@ function findAdminUser(userId) {
   return adminUsers.find((user) => user.userId.toLowerCase() === normalizedId);
 }
 
-function loginAdmin(userId) {
+function loginAdmin(userId, password) {
   const adminUser = findAdminUser(userId);
 
   if (!adminUser) {
-    state.adminError = "This user ID is not listed in the admin config.";
+    state.adminError = "This admin username is not listed in the admin config.";
+    render();
+    return;
+  }
+
+  if (String(password || "") !== String(adminUser.password || "")) {
+    state.adminError = "Incorrect admin password.";
     render();
     return;
   }
@@ -964,9 +970,12 @@ function renderAdminLogin() {
     <section class="console-grid">
       <div class="panel admin-login">
         <h2>Admin Login</h2>
-        <p class="muted">Residents can view the portal without login. Only user IDs listed in the admin config can update live scores, winners, line-ups, trump flags, and schedule details.</p>
-        <label>Admin user ID
-          <input data-admin-user-id placeholder="Enter configured admin ID" autocomplete="username" />
+        <p class="muted">Residents can view the portal without login. Only configured admins can update live scores, winners, line-ups, trump flags, and schedule details.</p>
+        <label>Admin username
+          <input data-admin-user-id placeholder="Enter admin username" autocomplete="username" />
+        </label>
+        <label>Admin password
+          <input data-admin-password type="password" placeholder="Enter admin password" autocomplete="current-password" />
         </label>
         ${state.adminError ? `<p class="login-error">${state.adminError}</p>` : ""}
         <div class="action-row">
@@ -1371,11 +1380,15 @@ function bindEvents() {
   });
 
   document.querySelector("[data-admin-login]")?.addEventListener("click", () => {
-    loginAdmin(document.querySelector("[data-admin-user-id]")?.value || "");
+    loginAdmin(document.querySelector("[data-admin-user-id]")?.value || "", document.querySelector("[data-admin-password]")?.value || "");
   });
 
   document.querySelector("[data-admin-user-id]")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") loginAdmin(event.target.value || "");
+    if (event.key === "Enter") loginAdmin(event.target.value || "", document.querySelector("[data-admin-password]")?.value || "");
+  });
+
+  document.querySelector("[data-admin-password]")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") loginAdmin(document.querySelector("[data-admin-user-id]")?.value || "", event.target.value || "");
   });
 
   document.querySelector("[data-admin-logout]")?.addEventListener("click", logoutAdmin);
