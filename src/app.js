@@ -449,21 +449,50 @@ function getCompletedCount(category) {
   return state.fixtures.filter((match) => match.category === category && match.status === "Completed").length;
 }
 
+function getCategorySummary(category) {
+  const categoryMatches = state.fixtures.filter((match) => match.category === category);
+  const completed = categoryMatches.filter((match) => match.status === "Completed");
+  const leaders = calculateCategoryStandings(category);
+  const topScore = leaders[0]?.points || 0;
+  const lastCompleted = completed
+    .slice()
+    .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`))[0];
+
+  return {
+    total: categoryMatches.length,
+    completed: completed.length,
+    pending: categoryMatches.length - completed.length,
+    leaders,
+    topScore,
+    lastCompleted,
+  };
+}
+
 function renderStandingCards(category, compact = false) {
   const standings = calculateCategoryStandings(category);
   if (!standings.length) return `<p class="muted empty-dashboard">No completed matches entered for ${category} yet.</p>`;
+  const topScore = Math.max(...standings.map((row) => row.points), 1);
 
   return `
     <div class="standings-grid ${compact ? "compact-standings" : ""}">
       ${standings
         .map(
           (row, index) => `
-            <article class="standing-card ${index < 2 ? "qualifier" : ""}">
-              <span>Rank ${index + 1}</span>
-              <h3>${row.team}</h3>
-              <strong>${row.points}</strong>
-              <p>Played ${row.played} | Won ${row.won} | Lost ${row.lost}</p>
-              ${category === "Team Championship" ? `<small>Trump W ${row.trumpWon} | Trump L ${row.trumpLost}</small>` : `<small>Category points</small>`}
+            <article class="standing-card ${index < 3 ? "qualifier" : ""}">
+              <div class="standing-rank">
+                <span>#${index + 1}</span>
+                <b>${index === 0 ? "Leader" : index < 3 ? "Chasing" : "In play"}</b>
+              </div>
+              <h3>${escapeHtml(row.team)}</h3>
+              <div class="standing-scoreline">
+                <strong>${row.points}</strong>
+                <span>${row.points === 1 ? "point" : "points"}</span>
+              </div>
+              <div class="standing-meter" aria-label="${escapeAttr(row.team)} standings progress">
+                <i style="width: ${Math.max(8, Math.round((row.points / topScore) * 100))}%"></i>
+              </div>
+              <p>${row.played} played | ${row.won} won | ${row.lost} lost</p>
+              ${category === "Team Championship" ? `<small>Trump W ${row.trumpWon} | Trump L ${row.trumpLost}</small>` : `<small>Win = 1 category point</small>`}
             </article>
           `
         )
@@ -477,15 +506,22 @@ function renderDashboard() {
   const selected = state.selectedDashboardCategory;
   const categoriesToShow = selected === "all" ? categories : [selected];
   const completedTotal = state.fixtures.filter((match) => match.status === "Completed").length;
+  const categorySummaries = categories.map((category) => ({ category, ...getCategorySummary(category) }));
+  const activeLeaders = categorySummaries.filter((item) => item.leaders.length).sort((a, b) => b.completed - a.completed).slice(0, 4);
 
   return `
-    <section class="panel">
-      <div class="section-head">
+    <section class="panel dashboard-panel">
+      <div class="dashboard-hero">
         <div>
           <h2>Tournament Dashboard</h2>
-          <p class="muted">Overall and category-wise standings. Team Championship includes trump scoring.</p>
+          <p>Live category standings for viewers. Filter any category to see who is leading, chasing, and still in play.</p>
         </div>
-        <select data-dashboard-category>
+        <div class="dashboard-live-pill"><b>${completedTotal}</b><span>results updated</span></div>
+      </div>
+      <div class="dashboard-filter-bar" aria-label="Dashboard category filter">
+        <button class="${selected === "all" ? "active" : ""}" data-dashboard-filter="all">All</button>
+        ${categories.map((category) => `<button class="${selected === category ? "active" : ""}" data-dashboard-filter="${escapeAttr(category)}">${category}</button>`).join("")}
+        <select data-dashboard-category aria-label="Choose dashboard category">
           <option value="all" ${selected === "all" ? "selected" : ""}>All categories</option>
           ${categories.map((category) => `<option value="${category}" ${selected === category ? "selected" : ""}>${category}</option>`).join("")}
         </select>
@@ -495,21 +531,59 @@ function renderDashboard() {
         <div><b>${completedTotal}</b><span>Completed</span></div>
         <div><b>${categories.length}</b><span>Categories</span></div>
       </div>
+      ${
+        activeLeaders.length
+          ? `
+            <div class="leader-strip">
+              ${activeLeaders
+                .map((item) => {
+                  const leader = item.leaders[0];
+                  return `
+                    <article>
+                      <span>${escapeHtml(item.category)}</span>
+                      <h3>${escapeHtml(leader.team)}</h3>
+                      <p>${leader.points} pts | ${leader.won}-${leader.lost}</p>
+                    </article>
+                  `;
+                })
+                .join("")}
+            </div>
+          `
+          : ""
+      }
       <div class="category-dashboard-list">
         ${categoriesToShow
           .map(
-            (category) => `
+            (category) => {
+              const summary = getCategorySummary(category);
+              const last = summary.lastCompleted;
+              return `
               <section class="category-dashboard">
                 <div class="category-dashboard-head">
                   <div>
-                    <h3>${category}</h3>
-                    <p>${getCompletedCount(category)} completed matches</p>
+                    <h3>${escapeHtml(category)}</h3>
+                    <p>${summary.completed} completed | ${summary.pending} pending</p>
                   </div>
                   <span>${category === "Team Championship" ? "Trump scoring" : "Win = 1 point"}</span>
                 </div>
+                <div class="category-progress">
+                  <i style="width: ${summary.total ? Math.round((summary.completed / summary.total) * 100) : 0}%"></i>
+                </div>
+                ${
+                  last
+                    ? `
+                      <div class="last-result">
+                        <span>Latest result</span>
+                        <b>${escapeHtml(last.winner || "Winner pending")}</b>
+                        <small>${escapeHtml(getDisplaySides(last).sideA)} ${last.scoreA}-${last.scoreB} ${escapeHtml(getDisplaySides(last).sideB)}</small>
+                      </div>
+                    `
+                    : ""
+                }
                 ${renderStandingCards(category, selected === "all")}
               </section>
-            `
+            `;
+            }
           )
           .join("")}
       </div>
@@ -1279,6 +1353,12 @@ function bindEvents() {
 
   document.querySelector("[data-dashboard-category]")?.addEventListener("change", (event) => {
     setState({ selectedDashboardCategory: event.target.value });
+  });
+
+  document.querySelectorAll("[data-dashboard-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setState({ selectedDashboardCategory: button.dataset.dashboardFilter });
+    });
   });
 
   document.querySelector("[data-active-select]")?.addEventListener("change", (event) => {
