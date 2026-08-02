@@ -1072,13 +1072,13 @@ function renderConsole() {
           </select>
         </label>
         <div class="mobile-score">
-          <div class="score-control-row">
+          <div class="score-control-row" data-score-pad="${active.id}:A:1">
             <strong>${sideA}</strong>
             <span>${active.scoreA}</span>
             <button class="score-add" data-score="${active.id}:A:1">+1</button>
             <button class="score-minus" aria-label="Reduce ${sideA} score" data-score="${active.id}:A:-1">-</button>
           </div>
-          <div class="score-control-row">
+          <div class="score-control-row" data-score-pad="${active.id}:B:1">
             <strong>${sideB}</strong>
             <span>${active.scoreB}</span>
             <button class="score-add" data-score="${active.id}:B:1">+1</button>
@@ -1193,8 +1193,16 @@ function bindEvents() {
   document.querySelector("[data-admin-logout]")?.addEventListener("click", logoutAdmin);
 
   document.querySelectorAll("[data-score]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
       const [id, side, delta] = button.dataset.score.split(":");
+      adjustScore(id, side, Number(delta));
+    });
+  });
+
+  document.querySelectorAll("[data-score-pad]").forEach((pad) => {
+    pad.addEventListener("click", () => {
+      const [id, side, delta] = pad.dataset.scorePad.split(":");
       adjustScore(id, side, Number(delta));
     });
   });
