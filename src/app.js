@@ -1,5 +1,5 @@
 import { adminUsers } from "./config/admin-users.js";
-import { fixtures, rosters, tournamentMeta } from "./data/tournament-data.js";
+import { fixtures, rosters as defaultRosters, tournamentMeta } from "./data/tournament-data.js";
 import { initFirebaseState, readSharedState, subscribeSharedState, writeSharedState } from "./services/firebase-state.js";
 
 const STORAGE_KEY = "npl-2026-state-v1";
@@ -18,6 +18,10 @@ let isRemoteStateEnabled = false;
 let isApplyingRemoteState = false;
 let isNavigationBound = false;
 
+function cloneRosters(source = defaultRosters) {
+  return JSON.parse(JSON.stringify(source || {}));
+}
+
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   const base = {
@@ -32,6 +36,7 @@ function loadState() {
     isAdminLoggedIn: hasUpdateAccess(),
     adminError: "",
     fixtures,
+    rosters: cloneRosters(),
   };
 
   if (!saved) return base;
@@ -46,6 +51,7 @@ function loadState() {
       ...base,
       ...parsed,
       fixtures: mergedFixtures,
+      rosters: parsed.rosters || base.rosters,
       isAdminLoggedIn: hasUpdateAccess(),
       adminError: "",
     };
@@ -65,6 +71,7 @@ function getSharedState() {
     youtubeUrl: state.youtubeUrl,
     streamEnabled: state.streamEnabled,
     fixtures: state.fixtures,
+    rosters: state.rosters,
     lastAdminUserId: getAdminSession()?.userId || "",
   };
 }
@@ -80,6 +87,7 @@ function applySharedState(sharedState) {
     youtubeUrl: sharedState.youtubeUrl ?? state.youtubeUrl,
     streamEnabled: Boolean(sharedState.streamEnabled),
     fixtures: mergedFixtures,
+    rosters: sharedState.rosters || state.rosters,
   });
   saveState();
 }
@@ -163,12 +171,20 @@ function escapeAttr(value) {
   return String(value).replace(/"/g, "&quot;");
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function unique(values) {
   return [...new Set(values)].filter(Boolean);
 }
 
 function flattenRoster(category) {
-  return Object.values(rosters[category] || {}).flat();
+  return Object.values(state.rosters[category] || {}).flat();
 }
 
 function pairCombinations(players) {
@@ -203,7 +219,7 @@ function getEntrantOptions(match, side) {
   if (match.category === "Team Championship") {
     const parsed = parseTeamChampionship(match);
     const teamName = side === "A" ? parsed.sideA : parsed.sideB;
-    const players = rosters["Team Championship"]?.[teamName] || [];
+    const players = state.rosters["Team Championship"]?.[teamName] || [];
     return parsed.gameType === "Doubles" ? pairCombinations(players) : players;
   }
 
@@ -330,16 +346,26 @@ function renderWinnerCell(match, sideA, sideB) {
 function renderStatusCell(match) {
   const badge = `<span class="badge ${match.status.toLowerCase()}">${match.status}</span>`;
   if (!state.isAdminLoggedIn || match.status === "Completed") return badge;
+  const futureDates = getFutureScheduleDates(match.date);
   return `
     <div class="status-cell">
       ${badge}
-      <button data-postpone="${match.id}">Postpone</button>
+      ${
+        futureDates.length
+          ? `
+            <select class="postpone-date-select" data-postpone-date="${match.id}" aria-label="Postpone ${match.match} to date">
+              ${futureDates.map((date) => `<option value="${date}">${formatDateLabel(date)}</option>`).join("")}
+            </select>
+            <button data-postpone="${match.id}">Postpone</button>
+          `
+          : `<span class="muted">No later date</span>`
+      }
     </div>
   `;
 }
 
 function calculateTeamStandings() {
-  const standings = Object.keys(rosters["Team Championship"] || {}).map((team) => ({
+  const standings = Object.keys(state.rosters["Team Championship"] || {}).map((team) => ({
     team,
     played: 0,
     won: 0,
@@ -634,7 +660,7 @@ function hasReachedCompletionScore(match) {
   return Number(match.scoreA || 0) !== Number(match.scoreB || 0) && Math.max(Number(match.scoreA || 0), Number(match.scoreB || 0)) >= target;
 }
 
-function getNextDateLabel(dateLabel) {
+function getDateKey(dateLabel) {
   const monthMap = {
     Jan: 0,
     Feb: 1,
@@ -650,12 +676,16 @@ function getNextDateLabel(dateLabel) {
     Dec: 11,
   };
   const [day, month, year] = String(dateLabel).split("-");
-  const date = new Date(2000 + Number(year), monthMap[month] ?? 0, Number(day));
-  date.setDate(date.getDate() + 1);
-  const nextDay = String(date.getDate()).padStart(2, "0");
-  const nextMonth = Object.entries(monthMap).find(([, index]) => index === date.getMonth())?.[0] || month;
-  const nextYear = String(date.getFullYear()).slice(-2);
-  return `${nextDay}-${nextMonth}-${nextYear}`;
+  return new Date(2000 + Number(year), monthMap[month] ?? 0, Number(day)).getTime();
+}
+
+function getScheduleDates() {
+  return unique(fixtures.map((match) => match.date)).sort((a, b) => getDateKey(a) - getDateKey(b));
+}
+
+function getFutureScheduleDates(dateLabel) {
+  const currentDateKey = getDateKey(dateLabel);
+  return getScheduleDates().filter((date) => getDateKey(date) > currentDateKey);
 }
 
 function filteredFixtures() {
@@ -706,6 +736,25 @@ function getYouTubeEmbedUrl(url) {
 function updateMatch(id, patch) {
   if (!state.isAdminLoggedIn) return;
   state.fixtures = state.fixtures.map((match) => (match.id === id ? { ...match, ...patch } : match));
+  saveState();
+  render();
+  syncSharedState();
+}
+
+function updateRoster(category, group, rosterText) {
+  if (!state.isAdminLoggedIn) return;
+  const players = String(rosterText || "")
+    .split(/\r?\n/)
+    .map((player) => player.trim())
+    .filter(Boolean);
+
+  state.rosters = {
+    ...state.rosters,
+    [category]: {
+      ...(state.rosters[category] || {}),
+      [group]: players,
+    },
+  };
   saveState();
   render();
   syncSharedState();
@@ -778,10 +827,15 @@ function markFixtureWinner(id, winner) {
   });
 }
 
-function postponeMatch(id) {
+function postponeMatch(id, targetDate) {
   const match = state.fixtures.find((item) => item.id === id);
   if (!match) return;
-  const nextDate = getNextDateLabel(match.date);
+  const futureDates = getFutureScheduleDates(match.date);
+  const nextDate = futureDates.includes(targetDate) ? targetDate : futureDates[0];
+  if (!nextDate) {
+    alert("There is no later scheduled date available for this match.");
+    return;
+  }
   updateMatch(id, {
     date: nextDate,
     status: "Postponed",
@@ -974,15 +1028,19 @@ function renderSchedule() {
 }
 
 function renderGroups() {
-  const categories = Object.keys(rosters);
-  const selected = rosters[state.selectedGroupCategory] || rosters[categories[0]];
+  const categories = Object.keys(state.rosters);
+  const selected = state.rosters[state.selectedGroupCategory] || state.rosters[categories[0]];
 
   return `
     <section class="panel">
       <div class="section-head">
         <div>
           <h2>Group-wise Players</h2>
-          <p class="muted">Players and pairs extracted from the shared tournament fixture document.</p>
+          <p class="muted">${
+            state.isAdminLoggedIn
+              ? "Admin mode: update group names below, one player or pair per line. Changes sync to schedule line-ups and viewers."
+              : "Players and pairs from the current tournament roster."
+          }</p>
         </div>
         <select data-group-category>
           ${categories.map((category) => `<option value="${category}" ${category === state.selectedGroupCategory ? "selected" : ""}>${category}</option>`).join("")}
@@ -994,7 +1052,16 @@ function renderGroups() {
             ([group, players]) => `
               <article class="group-card">
                 <h3>${group}</h3>
-                <ul>${players.map((player) => `<li>${player}</li>`).join("")}</ul>
+                ${
+                  state.isAdminLoggedIn
+                    ? `
+                      <label class="roster-editor-label">
+                        <span>Roster names</span>
+                        <textarea class="roster-editor" data-roster-category="${escapeAttr(state.selectedGroupCategory)}" data-roster-group="${escapeAttr(group)}">${escapeHtml(players.join("\n"))}</textarea>
+                      </label>
+                    `
+                    : `<ul>${players.map((player) => `<li>${escapeHtml(player)}</li>`).join("")}</ul>`
+                }
               </article>
             `
           )
@@ -1069,6 +1136,7 @@ function renderConsole() {
   const dates = unique(state.fixtures.map((match) => match.date));
   const categories = unique(state.fixtures.map((match) => match.category));
   const session = getAdminSession();
+  const futureDates = getFutureScheduleDates(active.date);
 
   return `
     <section class="console-grid">
@@ -1140,7 +1208,16 @@ function renderConsole() {
         </div>
         <div class="action-row">
           <button data-save-edits="${active.id}">Save Changes</button>
-          <button data-postpone="${active.id}">Postpone to next day</button>
+          ${
+            futureDates.length
+              ? `
+                <select class="postpone-date-select" data-postpone-date="${active.id}" aria-label="Postpone active match to date">
+                  ${futureDates.map((date) => `<option value="${date}">${formatDateLabel(date)}</option>`).join("")}
+                </select>
+                <button data-postpone="${active.id}">Postpone Match</button>
+              `
+              : `<button disabled>No later date to postpone</button>`
+          }
           <button data-status="Rescheduled">Mark Rescheduled</button>
           <button data-reset>Reset Demo Data</button>
         </div>
@@ -1194,6 +1271,12 @@ function bindEvents() {
     setState({ selectedGroupCategory: event.target.value });
   });
 
+  document.querySelectorAll("[data-roster-category][data-roster-group]").forEach((input) => {
+    input.addEventListener("change", () => {
+      updateRoster(input.dataset.rosterCategory, input.dataset.rosterGroup, input.value);
+    });
+  });
+
   document.querySelector("[data-dashboard-category]")?.addEventListener("change", (event) => {
     setState({ selectedDashboardCategory: event.target.value });
   });
@@ -1232,7 +1315,10 @@ function bindEvents() {
   });
 
   document.querySelectorAll("[data-postpone]").forEach((button) => {
-    button.addEventListener("click", () => postponeMatch(button.dataset.postpone));
+    button.addEventListener("click", () => {
+      const targetDate = document.querySelector(`[data-postpone-date="${button.dataset.postpone}"]`)?.value;
+      postponeMatch(button.dataset.postpone, targetDate);
+    });
   });
 
   document.querySelectorAll("[data-swap-sides]").forEach((button) => {
