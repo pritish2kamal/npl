@@ -46,16 +46,23 @@ Public viewers do not need to login. Update controls are hidden unless the
 browser has an Admin session. Admins can update scores, mark winners, change
 line-ups, mark trump games, and reschedule matches.
 
-Allowed Admin user IDs are configured in:
+Allowed Admin usernames and passwords are configured in:
 
 ```text
 src/config/admin-users.js
 ```
 
-The current prototype checks Admin IDs in the browser and writes the Admin user
-ID with Firestore updates. For stronger production security, replace this with
-Firebase Authentication and Firestore rules based on authenticated Admin email
-addresses or custom claims.
+Default demo credentials:
+
+```text
+Username: admin
+Password: npl2026
+```
+
+The current prototype checks Admin credentials in the browser and writes the
+Admin user ID with Firestore updates. For stronger production security, replace
+this with Firebase Authentication and Firestore rules based on authenticated
+Admin email addresses or custom claims.
 
 ## Firebase Deploy
 
