@@ -996,9 +996,10 @@ function renderLive() {
       <div class="broadcast-frame">
         <button class="fullscreen-live" data-live-fullscreen title="Open live view with score overlay">Score Fullscreen</button>
         <div class="score-overlay">
-          <div>
+          <div class="score-meta">
             <span>${active.category}</span>
             <strong>${active.date} ${active.time}</strong>
+            ${renderLiveBadges(active)}
           </div>
           <div class="scoreline">
             <b>${leftName}</b>
@@ -1011,8 +1012,10 @@ function renderLive() {
             <em>${rightScore}</em>
             <b>${rightName}</b>
           </div>
-          <div class="match-state">${active.stage} | ${active.status}</div>
-          ${renderLiveBadges(active)}
+          <div class="match-state">
+            <span>${active.stage}</span>
+            <strong>${active.status}</strong>
+          </div>
         </div>
         <div class="video-panel">
           ${
