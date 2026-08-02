@@ -1325,8 +1325,12 @@ th {
 
   main[data-view="console"] .action-row button {
     flex: 1;
+    min-width: 0;
     min-height: 38px;
     padding: 7px 9px;
     font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
