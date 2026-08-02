@@ -892,9 +892,9 @@ th {
   margin: 16px 0;
 }
 
-.mobile-score > div {
+.score-control-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(92px, 0.55fr) 48px;
   align-items: center;
   gap: 10px;
   padding: 12px;
@@ -909,7 +909,7 @@ th {
   text-align: center;
 }
 
-.mobile-score button,
+.score-add,
 .action-row button {
   padding: 10px 14px;
   border-radius: 12px;
@@ -918,10 +918,24 @@ th {
   font-weight: 900;
 }
 
-.mobile-score button:last-child,
+.score-add {
+  min-height: 54px;
+  font-size: 20px;
+}
+
+.score-minus,
 .action-row button:last-child {
   background: #eee7ff;
   color: #5b3ea6;
+}
+
+.score-minus {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 24px;
+  font-weight: 900;
 }
 
 .court-side-row {
@@ -1108,9 +1122,26 @@ th {
   }
 
   .form-grid,
-  .mobile-score > div,
+  .score-control-row,
   .court-side-row {
     grid-template-columns: 1fr;
+  }
+
+  .score-control-row {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .score-add {
+    min-height: 76px;
+    font-size: 30px;
+  }
+
+  .score-minus {
+    justify-self: center;
+    min-width: 68px;
+    min-height: 58px;
+    font-size: 30px;
   }
 
   .brand-lockup {
