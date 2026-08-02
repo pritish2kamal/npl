@@ -978,6 +978,7 @@ th {
   color: #5b3ea6;
   font-weight: 900;
   white-space: nowrap;
+  transform: rotate(90deg);
 }
 
 .court-side-row {
@@ -1282,6 +1283,7 @@ th {
     padding: 0 10px;
     font-size: 15px;
     box-shadow: 0 10px 20px rgba(124, 92, 230, 0.18);
+    transform: none;
   }
 
   main[data-view="console"] .score-control-row {
