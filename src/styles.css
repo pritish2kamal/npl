@@ -299,21 +299,15 @@ button {
 .score-overlay {
   position: absolute;
   z-index: 2;
-  top: 14px;
-  left: 14px;
-  right: 14px;
+  top: 12px;
+  left: 16px;
+  right: 16px;
   display: grid;
-  grid-template-columns: minmax(128px, 0.7fr) minmax(0, 1.8fr) minmax(120px, auto);
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  grid-template-columns: minmax(150px, 0.72fr) minmax(360px, 1.25fr) minmax(145px, 0.72fr);
+  align-items: start;
+  gap: 10px;
   color: #2f2850;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid rgba(222, 209, 255, 0.58);
-  border-radius: 10px;
-  box-shadow: 0 8px 18px rgba(31, 24, 68, 0.08);
-  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.68);
-  backdrop-filter: blur(5px);
+  pointer-events: none;
 }
 
 .fullscreen-live {
@@ -330,23 +324,58 @@ button {
   box-shadow: 0 8px 18px rgba(31, 24, 68, 0.18);
 }
 
-.score-overlay > div:first-child {
+.score-meta,
+.match-state {
   display: grid;
-  gap: 2px;
-  color: #71688d;
+  gap: 5px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(222, 209, 255, 0.52);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow: 0 8px 18px rgba(31, 24, 68, 0.08);
+  backdrop-filter: blur(4px);
+}
+
+.score-meta {
+  justify-self: start;
+}
+
+.score-meta > span,
+.match-state span {
+  color: #665a87;
   font-size: 11px;
+  font-weight: 800;
+}
+
+.score-meta > strong,
+.match-state strong {
+  color: #2f2850;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .scoreline {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 10px;
+  justify-self: center;
+  width: min(100%, 620px);
+  padding: 8px 12px;
+  border: 1px solid rgba(222, 209, 255, 0.62);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 10px 24px rgba(31, 24, 68, 0.12);
+  backdrop-filter: blur(5px);
 }
 
 .scoreline b {
   min-width: 0;
-  font-size: clamp(13px, 1.25vw, 17px);
+  color: #27213f;
+  font-size: clamp(13px, 1.2vw, 17px);
+  font-weight: 900;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -357,12 +386,14 @@ button {
 }
 
 .scoreline em {
-  min-width: 32px;
+  min-width: 42px;
   font-style: normal;
-  font-size: clamp(24px, 2.6vw, 38px);
+  font-size: clamp(30px, 3.2vw, 46px);
   font-weight: 900;
   text-align: center;
   color: #6d4cc7;
+  line-height: 0.95;
+  text-shadow: 0 2px 14px rgba(255, 255, 255, 0.8);
   animation: score-pop 520ms ease;
 }
 
@@ -373,9 +404,10 @@ button {
 }
 
 .swap-score-view {
+  pointer-events: auto;
   padding: 5px 8px;
   border-radius: 999px;
-  background: #eee7ff;
+  background: rgba(238, 231, 255, 0.92);
   color: #5b3ea6;
   font-size: 11px;
   font-weight: 900;
@@ -384,25 +416,22 @@ button {
 
 .match-state {
   justify-self: end;
-  color: #7c5ce6;
-  font-size: 12px;
-  font-weight: 800;
+  text-align: right;
   white-space: nowrap;
 }
 
 .live-badges {
-  grid-column: 1 / -1;
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: -2px;
+  margin-top: 2px;
 }
 
 .live-badges span {
   width: fit-content;
   padding: 3px 7px;
   border-radius: 999px;
-  background: #f2edff;
+  background: rgba(242, 237, 255, 0.88);
   color: #6d4cc7;
   font-size: 10px;
   font-weight: 900;
@@ -1314,21 +1343,25 @@ th {
     top: 10px;
     left: 10px;
     right: 10px;
-    grid-template-columns: minmax(90px, 0.75fr) minmax(0, 1.6fr) auto;
-    background: rgba(255, 255, 255, 0.62);
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
 
   .scoreline {
     grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
     align-items: center;
+    order: 1;
+    width: min(100%, 640px);
   }
 
-  .scoreline span {
-    display: inline;
+  .score-meta {
+    order: 2;
+    justify-self: start;
   }
 
-  .scoreline b:last-child {
-    text-align: right;
+  .match-state {
+    order: 3;
+    justify-self: end;
   }
 
   .video-panel,
@@ -1363,17 +1396,17 @@ th {
 
   .score-overlay {
     grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 8px;
+    gap: 7px;
   }
 
   .scoreline {
     grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
     gap: 5px;
+    padding: 7px 8px;
   }
 
   .live-badges {
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .scoreline b:last-child {
@@ -1381,12 +1414,12 @@ th {
   }
 
   .scoreline b {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .scoreline em {
-    min-width: 24px;
-    font-size: 24px;
+    min-width: 28px;
+    font-size: 28px;
   }
 
   .swap-score-view {
